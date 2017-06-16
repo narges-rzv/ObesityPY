@@ -43,6 +43,7 @@ def build_train_lstm_model(batch_size=32, num_steps=24, lstm_size=64, dInput, dO
 	for i in range(0, dInput.shape[0]):
 		numpy_state, current_loss = session.run([final_state, loss],feed_dict={initial_state: numpy_state, x: dInput[i]})
 		total_loss += current_loss
+	
 
 
 
