@@ -32,96 +32,117 @@ def load_data(TimeIn=[0,18*12], Timeout=[0, 18*12], outcomeIx=0):
     print('input shape:',dInput.shape, 'output shape:', dOutput.shape)
     return dInput, dOutput, dkselected, dgselected
 
-def split_train_valid_test(dInput, dOutput, dkselected, dgselected):
-    pass
+def split_train_valid_test(dInput, dOutput, dkselected=None, dgselected=None, ratioTest=0.25, ratioValid = 0.50):
+    import random
+    random.seed(0)
+    assert dInput.shape[0] == dOutput.shape[0]
+    ix = list(range(0,dInput.shape[0]))
+    random.shuffle(ix)
+    ix_test = ix[0:int(len(ix)*ratioTest)]
+    ix_valid = ix[int(len(ix)*ratioTest):int(len(ix)*ratioValid)]
+    ix_train = ix[int(len(ix)*ratioTest):]
+
+    dInTrain, dOutTrain = dInput[ix_train,:,:], dOutput[ix_train,:]
+    dInValid, dOutValid = dInput[ix_valid,:,:], dOutput[ix_valid,:]
+    dInTest, dOutTest = dInput[ix_test,:,:], dOutput[ix_test,:]
+    return dInTrain,dOutTrain, dInValid, dOutValid, dInTest, dOutTest
 
 
-def build_train_lstm(dIn, dOut, dkselected, dgselected, hidden_dim=51, dropout=False, batch_size=8, num_layers=2, gap=1):
+def augment_date(batchInput):
+    error = np.random.normal(0,0.1,batchInput.numpy().shape)
+    error[(batchInput.numpy()==0)] = 0
+    batchInput += torch.from_numpy(error).float()
+
+def build_train_lstm(dIn, dOut, dInValid, dOutValid, dInTest,dOutTest, hidden_dim=51, dropout=False, batch_size=32, num_layers=2, gap=0):
     # set ramdom seed to 0
     np.random.seed(0)
     torch.manual_seed(0)
     # load data and make training set
     print('input data:', dIn.shape, dIn.__class__)
     dInputTransposed = dIn.transpose((2,0,1)).copy()
-    dOutputTransposed = dOut.transpose().copy()
+    dOutputTransposed = dOut.transpose().max(axis=0)
     print('output data:', dOut.shape, dOut.__class__)
+    dInValidtrans, dOutValidtrans = dInValid.transpose((2,0,1)).copy(), dOutValid.transpose().max(axis=0)
+    dInTesttrans, dOutTesttrans = dInTest.transpose((2,0,1)).copy(), dOutTest.transpose().max(axis=0)
     seq_size = dIn.shape[2] - gap
     input_dim = dIn.shape[1]
-    batchInput = torch.from_numpy(dInputTransposed[0:seq_size,0:batch_size,0:input_dim]).float()
-    batchTarget = torch.from_numpy(dOutputTransposed[gap:seq_size+gap,0:batch_size]).float()
     target_dim = 1
-    # lstm_mod = nn.LSTM(input_dim, hidden_dim, num_layers, dropout = dropout, batch_first=True)
-    # output_lstm, hidden_lstm = lstm_mod(Variable(batchInput))
+    totalbatches = int(dIn.shape[0]/batch_size)
+
 
     class LSTMPredictor(nn.Module):
-        def __init__(self, hidden_dim, input_dim, num_layers, dout, bfirst, tagset_size):
+        def __init__(self, hidden_dim, input_dim, num_layers, dout, bfirst, tagset_size, minibatch_size, time_dim):
             super(LSTMPredictor, self).__init__()
             self.hidden_dim = hidden_dim
+            self.minibatch_size = minibatch_size
+            self.time_dim = time_dim
             self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, dropout=dout, batch_first=bfirst)
 
             # The linear layer that maps from hidden state space to tag space
-            self.hidden2output = nn.Linear(hidden_dim, tagset_size)
-            self.hidden = self.init_hidden()
-
-        def init_hidden(self):
+            self.hidden2output = nn.Linear(hidden_dim * time_dim, tagset_size)
+            self.hidden = self.init_hidden(minibatch_size)
+        def init_hidden(self,minibatch_size):
             # Before we've done anything, we dont have any hidden state.
             # Refer to the Pytorch documentation to see exactly
             # why they have this dimensionality.
             # The axes semantics are (num_layers, minibatch_size, hidden_dim)
-            return (autograd.Variable(torch.zeros(1, 1, self.hidden_dim)),
-                    autograd.Variable(torch.zeros(1, 1, self.hidden_dim)))
-
+            return (autograd.Variable(torch.zeros(num_layers, self.minibatch_size, self.hidden_dim)),
+                    autograd.Variable(torch.zeros(num_layers, self.minibatch_size, self.hidden_dim)))
         def forward(self, input):        
             lstm_out, self.hidden = self.lstm(input)
-            print(len(batchInput))
-            net_out = self.hidden2output((lstm_out.contiguous().view(len(batchInput), -1)))
-
-            net_softmaxout = functionalnn.log_softmax(net_out)
-            net_finalout = net_out
-
+            # print(lstm_out.size())
+            lstm_out_trans = (torch.transpose(lstm_out.contiguous(), 0, 1))
+            # print(lstm_out_trans.size())
+            net_out1 = self.hidden2output(lstm_out_trans.contiguous().view(self.minibatch_size,self.hidden_dim*self.time_dim))
+            # print(net_out1.size())
+            # net_softmaxout = functionalnn.log_softmax(net_out)
+            net_finalout = net_out1
             return net_finalout
 
-    model = LSTMPredictor(hidden_dim, input_dim, num_layers, dropout, True, target_dim)
+    model = LSTMPredictor(hidden_dim, input_dim, num_layers, dropout, True, target_dim, batch_size, seq_size)
     #loss_function = nn.NLLLoss()
     loss_function = nn.MSELoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.1)
-
+    optimizer = optim.RMSprop(model.parameters(), lr=0.01)
     # See what the scores are before training
     # Note that element i,j of the output is the score for tag j for word i.
-    output_lstm = model(Variable(batchInput))
-    print(output_lstm)
+    # output_lstm = model(Variable(batchInput))
+    # print(output_lstm)
 
     for epoch in range(300):  # again, normally you would NOT do 300 epochs, it is toy data
-        for sentence, tags in training_data:
-            # Step 1. Remember that Pytorch accumulates gradients.
-            # We need to clear them out before each instance
+        #shuffle the examples
+        total_loss = 0
+        total_cnt = 0
+        ix_shuffle = range(0,dInputTransposed.shape[1])
+        dInputTransposed_shuffled = dInputTransposed[:,ix_shuffle,:]
+        dOutputTransposed_shuffled = dOutputTransposed[ix_shuffle]
+
+        for batchIx in range(0, totalbatches):
+            batchInput = torch.from_numpy(dInputTransposed_shuffled[0:seq_size, (batchIx*batch_size):(batchIx*batch_size) + batch_size, 0:input_dim]).float()
+            augment_date(batchInput)
+            batchTarget = torch.from_numpy(dOutputTransposed[(batchIx*batch_size):(batchIx*batch_size) + batch_size]).float()
             model.zero_grad()
+            model.hidden = model.init_hidden(batch_size)
 
-            # Also, we need to clear out the hidden state of the LSTM,
-            # detaching it from its history on the last instance.
-            model.hidden = model.init_hidden()
-
-            # Step 2. Get our inputs ready for the network, that is, turn them into
-            # Variables of word indices.
-            sentence_in = prepare_sequence(sentence, word_to_ix)
-            targets = prepare_sequence(tags, tag_to_ix)
-
-            # Step 3. Run our forward pass.
-            tag_scores = model(sentence_in)
-
-            # Step 4. Compute the loss, gradients, and update the parameters by
-            #  calling optimizer.step()
-            loss = loss_function(tag_scores, targets)
+            predictions = model(Variable(batchInput))
+            loss = loss_function(predictions, Variable(batchTarget))
+            total_loss += loss.data.numpy()[0]
+            total_cnt += 1
             loss.backward()
             optimizer.step()
 
-    # See what the scores are after training
-    inputs = prepare_sequence(training_data[0][0], word_to_ix)
-    tag_scores = model(inputs)
-    # The sentence is "the dog ate the apple".  i,j corresponds to score for tag j
-    #  for word i. The predicted tag is the maximum scoring tag.
-    # Here, we can see the predicted sequence below is 0 1 2 0 1
-    # since 0 is index of the maximum value of row 1,
-    # 1 is the index of maximum value of row 2, etc.
-    # Which is DET NOUN VERB DET NOUN, the correct sequence!
-    print(tag_scores)
+        if (epoch % 10) == 0 :
+            valid_loss = 0
+            total_cnt_valid = 0
+            for ixvalidBatch in range(0,int(len(dOutValid)/batch_size)):
+                validBatchIn = torch.from_numpy(dInValidtrans[0:seq_size, (ixvalidBatch*batch_size):(ixvalidBatch*batch_size) + batch_size, :]).float()
+                validbatchOut = torch.from_numpy(dOutValidtrans[(ixvalidBatch*batch_size):(ixvalidBatch*batch_size) + batch_size]).float()
+                validPred = model(Variable(validBatchIn))
+                loss = loss_function(validPred, Variable(validbatchOut))
+                valid_loss += loss.data.numpy()[0]
+                total_cnt_valid += 1
+            print('average Valid mse loss at epoch:', epoch, ' is:',valid_loss/total_cnt_valid)
+
+
+        print('average Train mse loss at epoch:', epoch, ' is:',total_loss/total_cnt)
+
+
