@@ -16,6 +16,12 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 import pandas
 import random
 
+def preprocess(x):
+    for ix in range(0, min(4, x.shape[2])):
+        m, s = x[:,ix,:][(x[:,ix,:]>0)].mean(), x[:,ix,:][(x[:,ix,:]>0)].std()
+        x[:,ix,:][((x[:,ix,:] - m ) > 3*s) ] = 0
+        print(ix, m, s)
+
 def load_data(TimeIn=[0,18*12], Timeout=[0, 18*12], outcomeIx=0):
     #(data, data_percentile, datakeys, datagenders)
     (d, dp, dk, dg, dethn, drace) = pickle.load(open('timeseries_data20170620-174720.pkl','rb'))
@@ -28,6 +34,7 @@ def load_data(TimeIn=[0,18*12], Timeout=[0, 18*12], outcomeIx=0):
     race_streched = np.repeat(np.array(race_dummy).reshape(len(drace), race_dummy.shape[1],1), d.shape[2], axis=2)
 
     d = np.concatenate([d, gender_streched, ethn_streched, race_streched], axis=1)
+    preprocess(d)
 
     print ('total num of ppl with any of the vitals measured at age 0-24months:', ((d[:,0:len(vitals),TimeIn[0]:TimeIn[1]].sum(axis=2)>0).sum(axis=1)>0).sum())
     print ('total num of ppl with BMI measured at age 4-6:', ((d[:, outcomeIx, Timeout[0]:Timeout[1]].sum(axis=1)>0)).sum() )
@@ -147,7 +154,7 @@ def build_train_lstm(dIn, dOut, dInValid, dOutValid, dInTest,dOutTest, model_fil
     
     model2 = LSTMPredictor_multiclassifier(hidden_dim, input_dim, num_layers, dropout, True, target_dim, batch_size, seq_size, bidirectional)
     
-    model = model2
+    model = model1
 
     loss_function = nn.MSELoss() #if classification nn.NLLLoss()
     
@@ -175,7 +182,7 @@ def build_train_lstm(dIn, dOut, dInValid, dOutValid, dInTest,dOutTest, model_fil
             batchTarget1 = torch.from_numpy(dOutputTransposed_shuffled[(batchIx*batch_size):(batchIx*batch_size) + batch_size]).float()
             batchTarget2 = torch.from_numpy(dInputTransposed_shuffled[(batchIx*batch_size):(batchIx*batch_size) + batch_size, gap:seq_size, 0:input_dim]).float()
 
-            batchTarget = batchTarget2
+            batchTarget = batchTarget1
 
             model.zero_grad()
             model.hidden = model.init_hidden(batch_size)
@@ -195,7 +202,7 @@ def build_train_lstm(dIn, dOut, dInValid, dOutValid, dInTest,dOutTest, model_fil
                 validBatchIn = torch.from_numpy(dInValidtrans[(ixvalidBatch*batch_size):(ixvalidBatch*batch_size) + batch_size, 0:seq_size-gap, :]).float()
                 validbatchOut1 = torch.from_numpy(dOutValidtrans[(ixvalidBatch*batch_size):(ixvalidBatch*batch_size) + batch_size]).float()
                 validbatchOut2 = torch.from_numpy(dInValidtrans[(ixvalidBatch*batch_size):(ixvalidBatch*batch_size) + batch_size, gap:seq_size, :]).float()
-                validbatchOut = validbatchOut2
+                validbatchOut = validbatchOut1
 
                 validPred = model(Variable(validBatchIn))
                 loss = loss_function(validPred, Variable(validbatchOut))
