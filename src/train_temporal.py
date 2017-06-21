@@ -14,6 +14,7 @@ import time
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 import pandas
+import random
 
 def load_data(TimeIn=[0,18*12], Timeout=[0, 18*12], outcomeIx=0):
     #(data, data_percentile, datakeys, datagenders)
@@ -46,7 +47,6 @@ def load_data(TimeIn=[0,18*12], Timeout=[0, 18*12], outcomeIx=0):
     return dInput, dOutput, dkselected, dgselected, dethenselected, draceselected
 
 def split_train_valid_test(dInput, dOutput, dkselected=None, dgselected=None, ratioTest=0.25, ratioValid = 0.50):
-    import random
     random.seed(0)
     assert dInput.shape[0] == dOutput.shape[0]
     ix = list(range(0,dInput.shape[0]))
@@ -81,9 +81,9 @@ def impute(batchInputNumpy):
             # return(X,y,gp.predict(xpred).ravel() + y.mean() )
  
 
-class LSTMPredictor(nn.Module):
+class LSTMPredictor_singleclassifier(nn.Module):
     def __init__(self, hidden_dim, input_dim, num_layers, dout, bfirst, tagset_size, minibatch_size, time_dim, bidirectional):
-        super(LSTMPredictor, self).__init__()
+        super(LSTMPredictor_singleclassifier, self).__init__()
         self.hidden_dim = hidden_dim
         self.minibatch_size = minibatch_size
         self.time_dim = time_dim
@@ -96,25 +96,45 @@ class LSTMPredictor(nn.Module):
         self.hidden = self.init_hidden(minibatch_size)
 
     def init_hidden(self,minibatch_size): # The axes semantics are (num_layers, minibatch_size, hidden_dim)
-        return (autograd.Variable(torch.zeros(self.num_layers * self.directions, self.minibatch_size, self.hidden_dim)),
-                autograd.Variable(torch.zeros(self.num_layers * self.directions, self.minibatch_size, self.hidden_dim)))
+        return (autograd.Variable(torch.zeros(self.minibatch_size, self.num_layers * self.directions,  self.hidden_dim)),
+                autograd.Variable(torch.zeros(self.minibatch_size, self.num_layers * self.directions,  self.hidden_dim)))
     
     def forward(self, input):        
         lstm_out, self.hidden = self.lstm(input)
-        lstm_out_trans = (torch.transpose(lstm_out.contiguous(), 0, 1))
-        net_out1 = self.hidden2output(lstm_out_trans.contiguous().view(self.minibatch_size,self.hidden_dim*self.time_dim*self.directions))
+        # lstm_out_trans = (torch.transpose(lstm_out.contiguous(), 0, 1))
+        net_out1 = self.hidden2output(lstm_out.contiguous().view(self.minibatch_size, self.hidden_dim*self.time_dim*self.directions))
         # net_softmaxout = functionalnn.log_softmax(net_out)
         return net_out1
 
+class LSTMPredictor_multiclassifier(nn.Module):
+    def __init__(self, hidden_dim, input_dim, num_layers, dout, bfirst, tagset_size, minibatch_size, time_dim, bidirectional):
+        super(LSTMPredictor_multiclassifier, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.minibatch_size = minibatch_size
+        self.time_dim = time_dim
+        self.num_layers = num_layers
+        self.directions = 2 if bidirectional else 1
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, dropout=dout, batch_first=bfirst, bidirectional=bidirectional)
+        self.lstm = nn.RNN(input_dim, hidden_dim, num_layers, dropout=dout, batch_first=bfirst, bidirectional=bidirectional)
+
+    def init_hidden(self,minibatch_size): # The axes semantics are (num_layers, minibatch_size, hidden_dim)
+        return (autograd.Variable(torch.zeros(self.minibatch_size, self.num_layers * self.directions,  self.hidden_dim)),
+                autograd.Variable(torch.zeros(self.minibatch_size, self.num_layers * self.directions,  self.hidden_dim)))
+    
+    def forward(self, input):        
+        lstm_out, self.hidden = self.lstm(input)
+        return lstm_out
+
 def build_train_lstm(dIn, dOut, dInValid, dOutValid, dInTest,dOutTest, model_file='obesityat520170620-105723.pyth_lstm', 
-    hidden_dim=64, dropout=0.2, batch_size=16, num_layers=1, gap=0, bidirectional=False):
+    hidden_dim=18, dropout=False, batch_size=8, num_layers=1, gap=0, bidirectional=False):
     # set ramdom seed to 0
     np.random.seed(0)
     torch.manual_seed(0)
+    random.seed(0)
     # load data and make training set
     print('input data:', dIn.shape, dIn.__class__)
     dInputTransposed = dIn.transpose((0,2,1)).copy()
-    dOutputTransposed = dOut.transpose().max(axis=0)
+    dOutputTransposed = dOut.transpose().max(axis=0)    
     print('output data:', dOut.shape, dOut.__class__)
     dInValidtrans, dOutValidtrans = dInValid.transpose((0,2,1)).copy(), dOutValid.transpose().max(axis=0)
     dInTesttrans, dOutTesttrans = dInTest.transpose((0,2,1)).copy(), dOutTest.transpose().max(axis=0)
@@ -123,8 +143,14 @@ def build_train_lstm(dIn, dOut, dInValid, dOutValid, dInTest,dOutTest, model_fil
     target_dim = 1
     totalbatches = int(dIn.shape[0]/batch_size)
 
-    model = LSTMPredictor(hidden_dim, input_dim, num_layers, dropout, True, target_dim, batch_size, seq_size, bidirectional)
+    model1 = LSTMPredictor_singleclassifier(hidden_dim, input_dim, num_layers, dropout, True, target_dim, batch_size, seq_size, bidirectional)
+    
+    model2 = LSTMPredictor_multiclassifier(hidden_dim, input_dim, num_layers, dropout, True, target_dim, batch_size, seq_size, bidirectional)
+    
+    model = model2
+
     loss_function = nn.MSELoss() #if classification nn.NLLLoss()
+    
     optimizer = optim.RMSprop(model.parameters(), lr=0.05)
     
     try:
@@ -140,17 +166,21 @@ def build_train_lstm(dIn, dOut, dInValid, dOutValid, dInTest,dOutTest, model_fil
         total_loss = 0
         total_cnt = 0
         ix_shuffle = range(0,dInputTransposed.shape[0])
+        random.shuffle(list(ix_shuffle))
         dInputTransposed_shuffled = dInputTransposed[ix_shuffle,:,:]
         dOutputTransposed_shuffled = dOutputTransposed[ix_shuffle]
         for batchIx in range(0, totalbatches):
-            batchInputNumpy = dInputTransposed_shuffled[(batchIx*batch_size):(batchIx*batch_size) + batch_size, 0:seq_size, 0:input_dim]
-            #impute(batchInputNumpy)
+            batchInputNumpy = dInputTransposed_shuffled[(batchIx*batch_size):(batchIx*batch_size) + batch_size, 0:seq_size-gap, 0:input_dim]
             batchInput = torch.from_numpy(batchInputNumpy).float()
-            # augment_date(batchInput)
-            batchTarget = torch.from_numpy(dOutputTransposed_shuffled[(batchIx*batch_size):(batchIx*batch_size) + batch_size]).float()
+            batchTarget1 = torch.from_numpy(dOutputTransposed_shuffled[(batchIx*batch_size):(batchIx*batch_size) + batch_size]).float()
+            batchTarget2 = torch.from_numpy(dInputTransposed_shuffled[(batchIx*batch_size):(batchIx*batch_size) + batch_size, gap:seq_size, 0:input_dim]).float()
+
+            batchTarget = batchTarget2
+
             model.zero_grad()
             model.hidden = model.init_hidden(batch_size)
             predictions = model(Variable(batchInput))
+            # print('lstm input:', batchInput.size(), 'lstm output:',predictions.size(), 'target:',batchTarget.size())
             loss = loss_function(predictions, Variable(batchTarget))
             total_loss += loss.data.numpy()[0]
             total_cnt += 1
@@ -162,8 +192,11 @@ def build_train_lstm(dIn, dOut, dInValid, dOutValid, dInTest,dOutTest, model_fil
             valid_loss = 0
             total_cnt_valid = 0
             for ixvalidBatch in range(0,int(len(dOutValid)/batch_size)):
-                validBatchIn = torch.from_numpy(dInValidtrans[(ixvalidBatch*batch_size):(ixvalidBatch*batch_size) + batch_size, 0:seq_size, :]).float()
-                validbatchOut = torch.from_numpy(dOutValidtrans[(ixvalidBatch*batch_size):(ixvalidBatch*batch_size) + batch_size]).float()
+                validBatchIn = torch.from_numpy(dInValidtrans[(ixvalidBatch*batch_size):(ixvalidBatch*batch_size) + batch_size, 0:seq_size-gap, :]).float()
+                validbatchOut1 = torch.from_numpy(dOutValidtrans[(ixvalidBatch*batch_size):(ixvalidBatch*batch_size) + batch_size]).float()
+                validbatchOut2 = torch.from_numpy(dInValidtrans[(ixvalidBatch*batch_size):(ixvalidBatch*batch_size) + batch_size, gap:seq_size, :]).float()
+                validbatchOut = validbatchOut2
+
                 validPred = model(Variable(validBatchIn))
                 loss = loss_function(validPred, Variable(validbatchOut))
                 valid_loss += loss.data.numpy()[0]
@@ -183,7 +216,7 @@ def build_train_lstm(dIn, dOut, dInValid, dOutValid, dInTest,dOutTest, model_fil
         loss = loss_function(testPred, Variable(testBatchOut))
         test_loss += loss.data.numpy()[0]
         total_cnt_test += 1
-        
+
     print('average Test mse loss at epoch:', epoch, ' is:',test_loss/total_cnt_test)
     return test_pred_all, dOutTesttrans
 
