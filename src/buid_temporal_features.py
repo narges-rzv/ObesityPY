@@ -51,27 +51,31 @@ def built_vital_features(bdate, datalist, gender, datatype='HC'):
 	return data, data_percentile
 
 def build_data(datadic):
-	vitals = ['BMI', 'HC', 'Ht', 'Wt']
-	data = np.zeros((len(datadic), len(vitals), 12*18), dtype=float)
-	data_percentile = np.zeros((len(datadic), len(vitals), 12*18), dtype=float)
-	datakeys = []
-	datagenders = []
+    vitals = ['BMI', 'HC', 'Ht', 'Wt']
+    data = np.zeros((len(datadic), len(vitals), 12*18), dtype=float)
+    data_percentile = np.zeros((len(datadic), len(vitals), 12*18), dtype=float)
+    datakeys = []
+    datagenders = []
+    dataEthn = []
+    dataRace = []
+    dataDisease = []
 
-	for (ix, k) in enumerate(datadic.keys()):
-		print('user id:', ix, k)
-		if 'vitals' in datadic[k]:
-			datakeys.append(k)
-			datagenders.append(datadic[k]['gender'])	
-			for (jx, vtype) in enumerate(vitals):
-				if vtype in datadic[k]['vitals'].keys():
-					# print(datadic[k]['bdate'], datadic[k]['vitals'][vtype], datadic[k]['gender'], vtype)
-					d, dp = built_vital_features(datadic[k]['bdate'], datadic[k]['vitals'][vtype], datadic[k]['gender'], vtype)
-					data[ix, jx, :] = d.copy()
-					data_percentile[ix, jx, :] = dp.copy()
-	import time
-	timestr = time.strftime("%Y%m%d-%H%M%S")	
-	pickle.dump(file=open('timeseries_data'+timestr+'.pkl','wb'), obj=(data, data_percentile, datakeys, datagenders), protocol=-1)
-	return data, data_percentile, datakeys, datagenders
+    for (ix, k) in enumerate(datadic.keys()):
+        print('user id:', ix, k)
+        if 'vitals' in datadic[k]:
+            datakeys.append(k)
+            datagenders.append(datadic[k]['gender'])
+            dataEthn.append(datadic[k]['ethnicity'])	
+            dataRace.append(datadic[k]['race'])
+            for (jx, vtype) in enumerate(vitals):
+                if vtype in datadic[k]['vitals'].keys():
+                    # print(datadic[k]['bdate'], datadic[k]['vitals'][vtype], datadic[k]['gender'], vtype)
+                    d, dp = built_vital_features(datadic[k]['bdate'], datadic[k]['vitals'][vtype], datadic[k]['gender'], vtype)
+                    data[ix, jx, :] = d.copy()
+                    data_percentile[ix, jx, :] = dp.copy()
+    timestr = time.strftime("%Y%m%d-%H%M%S")	
+    pickle.dump(file=open('timeseries_data'+timestr+'.pkl','wb'), obj=(data, data_percentile, datakeys, datagenders, dataEthn, dataRace), protocol=-1)
+    return data, data_percentile, datakeys, datagenders
 
 init()
 
