@@ -392,13 +392,17 @@ def build_feature_ICD_index():
 	feature_index = {}
 	feature_headers = []
 	for (ix, icd) in enumerate(icd9 + icd10):
-		icd_code = icd.split(' ')[0].strip()
-		if icd_code in feature_index:
-			feature_index[icd_code].append(ix)
-			# print('double!!', icd_code)
-		else:
-			feature_index[icd_code] = [ix]
-	feature_headers = ['Diagnosis:' + i for i in  (icd9 + icd10)]
+		icd_codes = icd.split('|')[0].strip().split(' ')
+		icd_codes_desc = icd.split('|')[1].strip()
+		# print(icd_codes_desc)
+		feature_headers.append(icd_codes_desc)
+		for icd_code in icd_codes:
+			if icd_code in feature_index:
+				feature_index[icd_code].append(ix)
+				# print('warning - double icd in 9&10:', icd_code)
+			else:
+				feature_index[icd_code] = [ix]
+	# feature_headers = ['Diagnosis:' + i for i in  (icd9 + icd10)]
 	return feature_index, feature_headers
 
 def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_from, months_to, percentile):
@@ -428,7 +432,7 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 		(build_features_gen, [ feature_index_gen, feature_headers_gen ]), #
 		(build_features_ethn, [ feature_index_ethn, feature_headers_ethn]),
 		(build_features_race, [ feature_index_race, feature_headers_race]),
-		(build_features_vitalLatest, [ feature_index_vitalLatest, feature_headers_vitalsLatest]),
+		# (build_features_vitalLatest, [ feature_index_vitalLatest, feature_headers_vitalsLatest]),
 		# environment
 		(build_features_zipcd, [ feature_index_zipcd, feature_headers_zipcd]),
 		# maternal features
