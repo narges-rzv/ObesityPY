@@ -21,8 +21,8 @@ input_csv_race_colname = 'race'
 vital_keys = {'Temp', 'Ht', 'Wt', 'BMI', 'BP', 'HR', 'Oxygen', 'Pulse', 'Hearing', 'Vision', 'RR', 'PEF', 'Pre-gravid', 'Repeat', 'Pain', 'HC', 'Fundal', 'Education', 'Insulin', 'HIV', 'BMI Percentile', 'Ht Percentile', 'Wt Percentile', 'Wt Change', 'Oxygen sat', 'Pulse sitting', 'Vision (R) CC', 'Vision (L) CC', ''}
 
 shelve_database_file = '/mnt/d0/encrypted_data/data/shelveDB.shlv'
-icd9List = '../auxdata/icd9list.txt'
-icd10List = '../auxdata/icd10list.txt'
+icd9List = '../auxdata/icd9listccs.txt'
+icd10List = '../auxdata/icd10listccs.txt'
 genderList = '../auxdata/genderlist.txt'
 ethnicityList = '../auxdata/ethnicityList.txt'
 raceList = '../auxdata/raceList.txt'
@@ -51,7 +51,7 @@ input_csv_mothers_deliv_diags = 'Delv DIAG'# (icd9/10 list separated by ';')
 
 
 BM_Marital_StatusList = '../auxdata/BM_Marital_Status.txt'
-BM_RaceList = '../data/auxBM_Race.txt'
+BM_RaceList = '../auxdata/BM_Race.txt'
 BM_EthnicityList = '../auxdata/BM_Ethnicity.txt'
 BM_NationalityList = '../auxdata/BM_Nationality.txt'
 BM_BirthPlace = '../auxdata/BM_BirthPlace.txt'
