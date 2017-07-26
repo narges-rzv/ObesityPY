@@ -28,7 +28,7 @@ genderList = '../auxdata/genderlist.txt'
 ethnicityList = '../auxdata/ethnicityList.txt'
 raceList = '../auxdata/raceList.txt'
 zipList = '../auxdata/zipList.txt'
-vitalsList = '../auxdata/vitals.txt'
+vitalsList = '../auxdata/vitals_subset.txt'
 labslist = '../auxdata/labs.txt'
 medslist = '../auxdata/meds.txt'
 
