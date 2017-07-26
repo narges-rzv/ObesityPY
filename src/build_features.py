@@ -27,6 +27,34 @@ def build_features_icd(patient_data, maternal_data, reference_date_start, refere
 			break
 	return res
 
+def build_features_lab(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	res = np.zeros(len(feature_headers), dtype=float)
+	for key1 in patient_data['labs']:
+		for edatel in patient_data['labs'][key1]:
+			edate = edatel[0]
+			if edate >= reference_date_end or edate <= reference_date_start:
+				continue
+			try:
+				res[feature_index[key1.strip()]] = edatel[1]
+			except KeyError:
+				pass # print('key error lab:', key1) 
+			break
+	return res
+
+def build_features_med(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	res = np.zeros(len(feature_headers), dtype=bool)
+	for key1 in patient_data['meds']:
+		for edatel in patient_data['meds'][key1]:
+			edate = edatel[0]
+			if edate >= reference_date_end or edate <= reference_date_start:
+				continue
+			try:
+				res[feature_index[key1.strip()]] = True
+			except KeyError:
+				pass # print ('key error', key1.strip())
+			break
+	return res
+
 def build_features_gen(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
 	res = np.zeros(len(feature_headers), dtype=bool)
 	code = patient_data['gender']
@@ -380,6 +408,45 @@ def build_feature_race_index():
 	feature_headers = ['Race:'+ i for i in codesNnames]
 	return feature_index, feature_headers
 
+def build_feature_lab_index():
+	try:
+		labsfile = [l.strip().decode("utf-8")  for l in open(config_file.labslist, 'rb').readlines()]
+	except:
+		labsfile = [l.strip().decode('latin-1')  for l in open(config_file.labslist, 'rb').readlines()]
+	
+	feature_index = {}
+	feature_headers = []
+	for (ix, labcd) in enumerate(labsfile):
+		lab_codes = labcd.split('|')[0].strip().split('#')
+		lab_codes_desc = labcd.split('|')[1].strip()
+		feature_headers.append('Lab:'+lab_codes_desc)
+		for lab_code in lab_codes:
+			if lab_code in feature_index:
+				feature_index[lab_code].append(ix)
+			else:
+				feature_index[lab_code] = [ix]
+	return feature_index, feature_headers
+
+def build_feature_med_index():
+	try:
+		medsfile = [l.strip().decode("utf-8")  for l in open(config_file.medslist, 'rb').readlines()]
+	except:
+		medsfile = [l.strip().decode('latin-1')  for l in open(config_file.medslist, 'rb').readlines()]
+	
+	feature_index = {}
+	feature_headers = []
+	for (ix, medcd) in enumerate(medsfile):
+		med_codes = medcd.split('|')[0].strip().split('#')
+		med_codes_desc = medcd.split('|')[1].strip()
+		feature_headers.append('Medication:'+med_codes_desc)
+		for med_code in med_codes:
+			if med_code in feature_index:
+				feature_index[med_code].append(ix)
+			else:
+				feature_index[med_code] = [ix]
+	return feature_index, feature_headers
+
+
 def build_feature_ICD_index():
 	try:
 		icd9 = [l.strip().decode("utf-8")  for l in open(config_file.icd9List, 'rb').readlines()]
@@ -410,6 +477,8 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 	outcomelabels = np.zeros(len(data_dic.keys()), dtype=float)
 	feature_index_gen, feature_headers_gen = build_feature_gender_index()
 	feature_index_icd, feature_headers_icd = build_feature_ICD_index()
+	feature_index_lab, feature_headers_lab = build_feature_lab_index()
+	feature_index_med, feature_headers_med = build_feature_med_index()
 	feature_index_ethn, feature_headers_ethn = build_feature_ethn_index()
 	feature_index_race, feature_headers_race = build_feature_race_index()
 	feature_index_zipcd, feature_headers_zipcd = build_feature_zipcd_index()
@@ -429,6 +498,8 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 	
 	funcs = [
 		(build_features_icd, [ feature_index_icd, feature_headers_icd ]), #
+		(build_features_lab, [ feature_index_lab, feature_headers_lab ]),
+		(build_features_med, [ feature_index_med, feature_headers_med ]),
 		(build_features_gen, [ feature_index_gen, feature_headers_gen ]), #
 		(build_features_ethn, [ feature_index_ethn, feature_headers_ethn]),
 		(build_features_race, [ feature_index_race, feature_headers_race]),
@@ -448,7 +519,7 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 		(build_features_mat_agedel, [ feature_index_mat_agedeliv, feature_headers_age_deliv])
 	]
 
-	features = np.zeros((len(data_dic.keys()), sum([len(f[1][1]) for f in funcs ]) ), dtype=bool)
+	features = np.zeros((len(data_dic.keys()), sum([len(f[1][1]) for f in funcs ]) ), dtype=float)
 	
 	headers = []
 	for (pos, f ) in enumerate(funcs):
