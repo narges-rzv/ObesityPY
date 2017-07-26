@@ -24,24 +24,21 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR='', percentil
 		index_finder_filterstr = (index_finder_filterstr > 0)
 	else:
 		index_finder_filterstr = np.array([h.startswith(filterSTR) for h in headers])
-	index_finder_maternal = np.array([h.startswith('Maternal') for h in headers])
-	index_finder_diagnosis = np.array([h.startswith('Diagnosis') for h in headers])
-	index_finder_vital = np.array([h.startswith('Vital_latest') for h in headers])
 
 	if index_finder_filterstr.sum() > 1 and filterSTR.__class__ != list:
 		print('instead of *startswith*',filterSTR,'...trying *equals to*', filterSTR)
 		index_finder_filterstr = np.array([h == filterSTR for h in headers])
 
 	if filterSTR != '' and percentile == False:
-		ix = (y>0) & (y < 50) & ((x[:,index_finder_filterstr].sum(axis=1) >= len(filterSTR)).ravel()) #& (x[:, index_finder_diagnosis].sum(axis=1).ravel()>0) #& ((x[:,index_finder_maternal].sum(axis=1).ravel()>0) )
+		ix = (y>0) & (y < 50) & ((x[:,index_finder_filterstr].sum(axis=1) >= len(filterSTR)).ravel()) 
 	elif percentile == False:
-		ix = (y>0) & (y < 50) #& (x[:,index_finder_diagnosis].sum(axis=1).ravel()>0) #& ((x[:,index_finder_maternal].sum(axis=1).ravel()>0) ) #
+		ix = (y>0) & (y < 50) 
 		print(ix.sum())
 		
 	if (percentile == True) & (filterSTR != ''):
-		ix = (x[:,index_finder_filterstr].ravel() == True) #& ((x[:,index_finder_diagnosis].sum(axis=1).ravel()>0) ) 
+		ix = (x[:,index_finder_filterstr].ravel() == True) 
 	elif percentile == True:
-		ix = (x[:,index_finder_filterstr].ravel() >= False) #& ((x[:,index_finder_diagnosis].sum(axis=1).ravel()>0) ) # no filter
+		ix = (x[:,index_finder_filterstr].ravel() >= False) 
 	print(str(ix.sum()) + ' patients selected..')
 	return ix, x[ix,:], y[ix], ylabel[ix]
 
@@ -185,6 +182,7 @@ def train_linear_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, mont
 		print('Not enough subjects. Next.')
 		return (filterSTR, [])
 	(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel) = train_regression(x2, y2, y2label, percentile, modelType)
+
 	
 	if modelType == 'lasso':
 		model_weights = model.coef_
@@ -204,8 +202,8 @@ def train_linear_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, mont
 	sig_headers = []
 	for i in range(0, (abs(model_weights)>0).sum()):
 		tp = ((y2label > 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
-		tn = ((y2label == 0) & (x2_reordered[:,i].ravel() == 0)).sum()*1.0
-		fp = ((y2label > 0) & (x2_reordered[:,i].ravel() == 0)).sum()*1.0
+		tn = ((y2label == 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
+		fp = ((y2label > 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
 		fn = ((y2label == 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
 		if fp*fn*tp*tn == 0:
 			oratio = np.nan
@@ -216,8 +214,8 @@ def train_linear_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, mont
 			se = np.sqrt(1/tp + 1/fp + 1/tn + 1/fn)
 			low_OR = np.exp(np.log(oratio) - 1.96 * se)
 			high_OR = np.exp(np.log(oratio) + 1.96 * se)
+		print("weight: {0:4.3f} | {1} | occ: {2} | OR: {3:4.3f} [{4:4.3f} {5:4.3f}]".format(weights[i], factors[i], occurances[i], oratio, low_OR, high_OR))
 		if low_OR >1 or high_OR < 1:
-			print("weight: {0:4.3f} | {1} | occ: {2} | OR: {3:4.3f} [{4:4.3f} {5:4.3f}]".format(weights[i], factors[i], occurances[i], oratio, low_OR, high_OR))
 			sig_headers.append(factors[i])
 
 	return (filterSTR, sig_headers)
