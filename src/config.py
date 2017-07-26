@@ -1,4 +1,5 @@
-input_csv = ["/mnt/d0/encrypted_data/data/All_patients_of_age_18_or_less_in_eCW_for_at_least_2_years_II.csv","/mnt/d0/encrypted_data/data/All_patients_of_age_18_or_less_in_eCW_for_at_least_2_years_II_sheet2.csv"]
+input_csv = ["/Volumes/R/obesity/data/All_patients_of_age_18_or_less_in_eCW_for_at_least_2_years_II.csv","/Volumes/R/obesity/data/All_patients_of_age_18_or_less_in_eCW_for_at_least_2_years_II_sheet2.csv"]
+mom_input_csv = ['/Volumes/R/obesity/data/luth_mat_nbrn_revis.csv']
 input_csv_delimiter = ","
 
 input_csv_mid_colname = 'patientid'
@@ -20,7 +21,7 @@ input_csv_eth_colname = 'ethnicity'
 input_csv_race_colname = 'race'
 vital_keys = {'Temp', 'Ht', 'Wt', 'BMI', 'BP', 'HR', 'Oxygen', 'Pulse', 'Hearing', 'Vision', 'RR', 'PEF', 'Pre-gravid', 'Repeat', 'Pain', 'HC', 'Fundal', 'Education', 'Insulin', 'HIV', 'BMI Percentile', 'Ht Percentile', 'Wt Percentile', 'Wt Change', 'Oxygen sat', 'Pulse sitting', 'Vision (R) CC', 'Vision (L) CC', ''}
 
-shelve_database_file = '/mnt/d0/encrypted_data/data/shelveDB.shlv'
+shelve_database_file = '/shelveDB.shlv'
 icd9List = '../auxdata/icd9listccs.txt'
 icd10List = '../auxdata/icd10listccs.txt'
 genderList = '../auxdata/genderlist.txt'
@@ -28,6 +29,8 @@ ethnicityList = '../auxdata/ethnicityList.txt'
 raceList = '../auxdata/raceList.txt'
 zipList = '../auxdata/zipList.txt'
 vitalsList = '../auxdata/vitals.txt'
+labslist = '../auxdata/labs.txt'
+medslist = '../auxdata/meds.txt'
 
 CDC_BMI_Ref = '../auxdata/CDC_BMIs.txt'
 
@@ -35,7 +38,8 @@ CDC_BMI_Ref = '../auxdata/CDC_BMIs.txt'
 input_csv_mothers = ['']
 input_csv_mothers_delim = ','
 
-input_csv_mothers_MRN = 'NB_MRN'
+input_csv_mothers_MRN = 'BM_MRN'
+input_csv_newborn_MRN = 'NB_MRN'
 input_csv_mothers_agedeliv = 'BM_Age_at_Delivery' #int
 input_csv_mothers_marriage = 'BM_Marital_Status'
 input_csv_mothers_race = 'BM_Race'
