@@ -9,9 +9,12 @@ from dateutil import parser
 import numpy as np
 import outcome_def_pediatric_obesity
 import build_features
+import random
 
 def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR='', percentile=False):
-	print(x.shape, len(headers))
+	print('x shape:', x.shape, 'num features:',len(headers))
+	index_finder_anyvital = np.array([h.startswith('Vital') for h in headers])
+	index_finder_maternal = np.array([h.startswith('Maternal') for h in headers])
 	if filterSTR.__class__ == list:
 		index_finder_filterstr = np.zeros(len(headers))
 		for fstr in filterSTR:
@@ -20,6 +23,7 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR='', percentil
 			if index_finder_filterstr_tmp.sum() > 1:
 				print('alert: filter returned more than one feature:', fstr)
 				index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
+				print('set filter to h==', fstr)
 			index_finder_filterstr = index_finder_filterstr + index_finder_filterstr_tmp
 		index_finder_filterstr = (index_finder_filterstr > 0)
 	else:
@@ -30,7 +34,7 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR='', percentil
 		index_finder_filterstr = np.array([h == filterSTR for h in headers])
 
 	if filterSTR != '' and percentile == False:
-		ix = (y>0) & (y < 50) & ((x[:,index_finder_filterstr].sum(axis=1) >= len(filterSTR)).ravel()) 
+		ix = (y>0) & (y < 50) & (((x[:,index_finder_filterstr]!=0).sum(axis=1) >= len(filterSTR)).ravel()) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1) & ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
 	elif percentile == False:
 		ix = (y>0) & (y < 50) 
 		print(ix.sum())
@@ -66,7 +70,7 @@ def train_regression(x, y, ylabel, percentile, modelType):
 		from sklearn.ensemble import RandomForestRegressor
 	N = x.shape[0]
 	ixlist = np.arange(0,N)	
-	import random
+	
 	from sklearn import metrics
 
 	random.seed(2)
@@ -181,11 +185,23 @@ def train_linear_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, mont
 	if (ix.sum() < 100):
 		print('Not enough subjects. Next.')
 		return (filterSTR, [])
-	(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel) = train_regression(x2, y2, y2label, percentile, modelType)
 
+	iters = 5
+	model_weights_array = np.zeros((iters, x2.shape[1]), dtype=float)
+	for iteration in range(0,iters):
+		randix = list(range(0, x2.shape[0]))
+		random.shuffle(randix)
+		randix = randix[0:int(len(randix)*0.9)]
+		datax = x2[randix,:]; datay=y2[randix]; dataylabel = y2label[randix]
+		(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel) = train_regression(datax, datay, dataylabel, percentile, modelType)
+		model_weights_array[iteration, :] = model.coef_
+
+	model_weights = model_weights_array.mean(axis=0)
+	model_weights_std = model_weights_array.std(axis=0)
+	model_weights_conf_term = (1.96/np.sqrt(iters)) * model_weights_std
 	
-	if modelType == 'lasso':
-		model_weights = model.coef_
+	# if modelType == 'lasso':
+	# 	model_weights = model.coef_
 	if modelType == 'randomforest':
 		model_weights = model.feature_importances_
 	if modelType == 'mlp':
@@ -194,10 +210,12 @@ def train_linear_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, mont
 
 	sorted_ix = np.argsort(-1* abs(model_weights))
 	weights = model_weights[sorted_ix]
+	terms_sorted = model_weights_conf_term[sorted_ix]
+
 	factors = np.array(feature_headers)[sorted_ix]
 	x2_reordered = x2[:,sorted_ix]
 	print('total variables', x2.sum(axis=0).shape, ' and total subjects:', x2.shape[0])
-	occurances = x2.sum(axis=0)[sorted_ix]
+	occurances = (x2 != 0).sum(axis=0)[sorted_ix]
 	zip_weights = {}
 	sig_headers = []
 	for i in range(0, (abs(model_weights)>0).sum()):
@@ -213,10 +231,12 @@ def train_linear_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, mont
 			oratio = tp*tn/(fp*fn)
 			se = np.sqrt(1/tp + 1/fp + 1/tn + 1/fn)
 			low_OR = np.exp(np.log(oratio) - 1.96 * se)
-			high_OR = np.exp(np.log(oratio) + 1.96 * se)
-		print("weight: {0:4.3f} | {1} | occ: {2} | OR: {3:4.3f} [{4:4.3f} {5:4.3f}]".format(weights[i], factors[i], occurances[i], oratio, low_OR, high_OR))
-		if low_OR >1 or high_OR < 1:
+			high_OR = np.exp(np.log(oratio) + 1.96 * se)	
+		star = ' '	
+		if (weights[i]+terms_sorted[i])< 0 or (weights[i]-terms_sorted[i]) > 0:
 			sig_headers.append(factors[i])
+			star = '*'
+		print("{8} {3} | coef {0:4.3f} [{1:4.3f} {2:4.3f}] | OR_adj {9:4.3f} [{10:4.3f} {11:4.3f}] | occ: {4} | OR_unadj: {5:4.3f} [{6:4.3f} {7:4.3f}]".format(weights[i], weights[i]-terms_sorted[i], weights[i]+terms_sorted[i], factors[i], occurances[i], oratio, low_OR, high_OR, star, np.exp(weights[i]), np.exp(weights[i]-terms_sorted[i]), np.exp(weights[i]+terms_sorted[i])))
 
 	return (filterSTR, sig_headers)
 		# print('weight:' + str(weights[i]) + ' | ' + factors[i] + ' | occ:' + str(occurances[i])) + ' | OR:' + str(oratio) + ' [' + str(low_OR) + ' ' + str(high_OR) +']' 
@@ -235,7 +255,7 @@ def train_chain(data_dic, data_dic_mom, agex_low, agex_high, months_from, months
 				continue
 			flist_copy = flist.copy()
 			flist_copy.append(s)
-			if len(flist_copy) > 4 :
+			if len(flist_copy) > 10 :
 				return
 			train_chain(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType, percentile, flist_copy)
 		return
