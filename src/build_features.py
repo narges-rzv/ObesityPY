@@ -27,6 +27,34 @@ def build_features_icd(patient_data, maternal_data, reference_date_start, refere
 			break
 	return res
 
+def build_features_lab(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	res = np.zeros(len(feature_headers), dtype=float)
+	for key1 in patient_data['labs']:
+		for edatel in patient_data['labs'][key1]:
+			edate = edatel[0]
+			if edate >= reference_date_end or edate <= reference_date_start:
+				continue
+			try:
+				res[feature_index[key1.strip()]] = edatel[1]
+			except KeyError:
+				pass # print('key error lab:', key1) 
+			break
+	return res
+
+def build_features_med(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	res = np.zeros(len(feature_headers), dtype=bool)
+	for key1 in patient_data['meds']:
+		for edatel in patient_data['meds'][key1]:
+			edate = edatel[0]
+			if edate >= reference_date_end or edate <= reference_date_start:
+				continue
+			try:
+				res[feature_index[key1.strip()]] = True
+			except KeyError:
+				pass # print ('key error', key1.strip())
+			break
+	return res
+
 def build_features_gen(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
 	res = np.zeros(len(feature_headers), dtype=bool)
 	code = patient_data['gender']
@@ -43,10 +71,43 @@ def build_features_vitalLatest(patient_data, maternal_data, reference_date_start
 			try:
 				# age_at_vital = (edate - bdate).days / 365.0
 				res[feature_index[code.strip()]] = vitalval
-					# print(code, age_at_vital, vitalval)
+				# print(code, age_at_vital, vitalval)
 			except:
 				pass
 				# print('error with', (code, edate, vitalval) )
+	return res
+
+def build_features_vitalAverage_0_6(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 6)
+
+def build_features_vitalAverage_6_12(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 6, 12)
+
+def build_features_vitalAverage_12_18(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 12, 18)
+
+def build_features_vitalAverage_18_24(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 18, 24)
+
+def build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, frommonth, tomonth):
+	res = np.zeros(len(feature_headers), dtype=float)
+	res_cnt = np.zeros(len(feature_headers), dtype=float)
+	bdate = patient_data['bdate']
+	for code in patient_data['vitals']:
+		for (edate, vitalval) in patient_data['vitals'][code]:
+			if edate >= reference_date_end or edate <= reference_date_start:
+				continue
+			try:
+				age_at_vital = (edate - bdate).days / 30
+				if (age_at_vital < frommonth) or (age_at_vital > tomonth) :
+					continue
+				res[feature_index[code.strip()]] += vitalval
+				res_cnt[feature_index[code.strip()]] += 1
+				# print(code, age_at_vital, vitalval)
+			except:
+				pass
+	res_cnt[(res_cnt==0)] = 1.0 
+	res = res/res_cnt
 	return res
 
 def build_features_ethn(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
@@ -55,6 +116,26 @@ def build_features_ethn(patient_data, maternal_data, reference_date_start, refer
 	if code in feature_index and pd.notnull(code):
 		res[feature_index[code]] = True
 	return res
+
+def build_features_mat_insurance1(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	res = np.zeros(len(feature_headers), dtype=bool)
+	if 'insur1' not in maternal_data:
+		# print (maternal_data)
+		return res
+	code = maternal_data['insur1']
+	if code in feature_index and pd.notnull(code):
+		res[feature_index[code]] = True
+	return res
+def build_features_mat_insurance2(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	res = np.zeros(len(feature_headers), dtype=bool)
+	if 'insur2' not in maternal_data:
+		# print (maternal_data)
+		return res
+	code = maternal_data['insur2']
+	if code in feature_index and pd.notnull(code):
+		res[feature_index[code]] = True
+	return res
+
 def build_features_race(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
 	res = np.zeros(len(feature_headers), dtype=bool)
 	code = patient_data['race']
@@ -172,6 +253,42 @@ def build_feature_matlang_index():
 			feature_index[code] = [ix]
 	feature_headers = ['Maternal-Language:'+ i for i in codesNnames]
 	return feature_index, feature_headers
+
+def build_feature_matinsurance1_index():
+	try:
+		codesNnames1 = [l.strip().decode('utf-8') for l in open(config_file.BM_Prim_Ins, 'rb').readlines()]
+	except:
+		codesNnames1 = [l.strip().decode('latin-1') for l in open(config_file.BM_Prim_Ins, 'rb').readlines()]
+	feature_index = {}
+	feature_headers = []
+	for (ix, codeline) in enumerate(codesNnames1):
+		code = codeline.strip()
+		if code in feature_index:
+			feature_index[code].append(ix)
+			# print('double!!', icd_code)
+		else:
+			feature_index[code] = [ix]
+	feature_headers = ['Prim_Insur:'+ i for i in codesNnames1]
+	return feature_index, feature_headers
+
+def build_feature_matinsurance2_index():
+	try:
+		codesNnames2 = [l.strip().decode('utf-8') for l in open(config_file.BM_Second_Ins, 'rb').readlines()]
+	except:
+		codesNnames2 = [l.strip().decode('latin-1') for l in open(config_file.BM_Second_Ins, 'rb').readlines()]
+	feature_index = {}
+	feature_headers = []
+	for (ix, codeline) in enumerate(codesNnames2):
+		code = codeline.strip()
+		if code in feature_index:
+			feature_index[code].append(ix)
+			# print('double!!', icd_code)
+		else:
+			feature_index[code] = [ix]
+	feature_headers = ['Second_Insur:'+ i for i in codesNnames2]
+	return feature_index, feature_headers
+
+
 def build_feature_matethn_index():
 	try:
 		codesNnames = [l.strip().decode('utf-8') for l in open(config_file.BM_EthnicityList, 'rb').readlines()]
@@ -188,6 +305,7 @@ def build_feature_matethn_index():
 			feature_index[code] = [ix]
 	feature_headers = ['Maternal-ethnicity:'+ i for i in codesNnames]
 	return feature_index, feature_headers
+
 def build_feature_matrace_index():
 	try:
 		codesNnames = [l.strip().decode('utf-8') for l in open(config_file.BM_RaceList, 'rb').readlines()]
@@ -255,7 +373,7 @@ def build_feature_matbirthpl_index():
 	return feature_index, feature_headers
 def build_feature_agedeliv_index():
 	feature_index={}
-	feature_headers=['MatDeliveryAge:']
+	feature_headers=['MatDeliveryAge']
 	return feature_index, feature_headers
 
 def build_feature_Mat_ICD_index():
@@ -340,12 +458,14 @@ def build_feature_vitallatest_index():
 	feature_index = {}
 	feature_headers = []
 	for (ix, codeline) in enumerate(codesNnames):
-		code = codeline.strip()
-		if code in feature_index:
-			feature_index[code].append(ix)
-		else:
-			feature_index[code] = [ix]
-	feature_headers = ['Vital_latest:'+ i for i in codesNnames]
+		codes = codeline.strip().split('#')[0]
+		descr = codeline.strip().split('#')[1]
+		for code in codes.split(' | '):
+			if code in feature_index:
+				feature_index[code.strip()].append(ix)
+			else:
+				feature_index[code.strip()] = [ix]
+		feature_headers.append('Vital:'+ descr)
 	return feature_index, feature_headers
 def build_feature_zipcd_index():
 	try:
@@ -380,6 +500,45 @@ def build_feature_race_index():
 	feature_headers = ['Race:'+ i for i in codesNnames]
 	return feature_index, feature_headers
 
+def build_feature_lab_index():
+	try:
+		labsfile = [l.strip().decode("utf-8")  for l in open(config_file.labslist, 'rb').readlines()]
+	except:
+		labsfile = [l.strip().decode('latin-1')  for l in open(config_file.labslist, 'rb').readlines()]
+	
+	feature_index = {}
+	feature_headers = []
+	for (ix, labcd) in enumerate(labsfile):
+		lab_codes = labcd.split('|')[0].strip().split('#')
+		lab_codes_desc = labcd.split('|')[1].strip()
+		feature_headers.append('Lab:'+lab_codes_desc)
+		for lab_code in lab_codes:
+			if lab_code in feature_index:
+				feature_index[lab_code].append(ix)
+			else:
+				feature_index[lab_code] = [ix]
+	return feature_index, feature_headers
+
+def build_feature_med_index():
+	try:
+		medsfile = [l.strip().decode("utf-8")  for l in open(config_file.medslist, 'rb').readlines()]
+	except:
+		medsfile = [l.strip().decode('latin-1')  for l in open(config_file.medslist, 'rb').readlines()]
+	
+	feature_index = {}
+	feature_headers = []
+	for (ix, medcd) in enumerate(medsfile):
+		med_codes = medcd.split('|')[0].strip().split('#')
+		med_codes_desc = medcd.split('|')[1].strip()
+		feature_headers.append('Medication:'+med_codes_desc)
+		for med_code in med_codes:
+			if med_code in feature_index:
+				feature_index[med_code].append(ix)
+			else:
+				feature_index[med_code] = [ix]
+	return feature_index, feature_headers
+
+
 def build_feature_ICD_index():
 	try:
 		icd9 = [l.strip().decode("utf-8")  for l in open(config_file.icd9List, 'rb').readlines()]
@@ -392,13 +551,17 @@ def build_feature_ICD_index():
 	feature_index = {}
 	feature_headers = []
 	for (ix, icd) in enumerate(icd9 + icd10):
-		icd_code = icd.split(' ')[0].strip()
-		if icd_code in feature_index:
-			feature_index[icd_code].append(ix)
-			# print('double!!', icd_code)
-		else:
-			feature_index[icd_code] = [ix]
-	feature_headers = ['Diagnosis:' + i for i in  (icd9 + icd10)]
+		icd_codes = icd.split('|')[0].strip().split(' ')
+		icd_codes_desc = icd.split('|')[1].strip()
+		# print(icd_codes_desc)
+		feature_headers.append(icd_codes_desc)
+		for icd_code in icd_codes:
+			if icd_code in feature_index:
+				feature_index[icd_code].append(ix)
+				# print('warning - double icd in 9&10:', icd_code)
+			else:
+				feature_index[icd_code] = [ix]
+	# feature_headers = ['Diagnosis:' + i for i in  (icd9 + icd10)]
 	return feature_index, feature_headers
 
 def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_from, months_to, percentile):
@@ -406,6 +569,8 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 	outcomelabels = np.zeros(len(data_dic.keys()), dtype=float)
 	feature_index_gen, feature_headers_gen = build_feature_gender_index()
 	feature_index_icd, feature_headers_icd = build_feature_ICD_index()
+	feature_index_lab, feature_headers_lab = build_feature_lab_index()
+	feature_index_med, feature_headers_med = build_feature_med_index()
 	feature_index_ethn, feature_headers_ethn = build_feature_ethn_index()
 	feature_index_race, feature_headers_race = build_feature_race_index()
 	feature_index_zipcd, feature_headers_zipcd = build_feature_zipcd_index()
@@ -420,15 +585,24 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 	feature_index_mat_agedeliv, feature_headers_age_deliv = build_feature_agedeliv_index()
 	feature_index_mat_icd, feature_headers_mat_icd = build_feature_Mat_ICD_index()
 	feature_index_nb_icd, feature_headers_nb_icd = build_feature_NB_ICD_index()
+	feature_index_mat_insurance1, feature_headers_mat_insurance1 = build_feature_matinsurance1_index()
+	feature_index_mat_insurance2, feature_headers_mat_insurance2 = build_feature_matinsurance2_index()
+
 	# feature_index_mat_deldiag, feature_headers_mat_deldiag = build_feature_deldiag_index()
 
 	
 	funcs = [
 		(build_features_icd, [ feature_index_icd, feature_headers_icd ]), #
+		(build_features_lab, [ feature_index_lab, feature_headers_lab ]),
+		(build_features_med, [ feature_index_med, feature_headers_med ]),
 		(build_features_gen, [ feature_index_gen, feature_headers_gen ]), #
 		(build_features_ethn, [ feature_index_ethn, feature_headers_ethn]),
 		(build_features_race, [ feature_index_race, feature_headers_race]),
-		(build_features_vitalLatest, [ feature_index_vitalLatest, feature_headers_vitalsLatest]),
+		(build_features_vitalLatest, [ feature_index_vitalLatest, [h+'-latest' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_0_6, [ feature_index_vitalLatest, [h+'-avg0to6' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_6_12, [ feature_index_vitalLatest, [h+'-avg6to12' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_12_18, [ feature_index_vitalLatest, [h+'-avg12to18' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_18_24, [ feature_index_vitalLatest, [h+'-avg18to24' for h in feature_headers_vitalsLatest]]),
 		# environment
 		(build_features_zipcd, [ feature_index_zipcd, feature_headers_zipcd]),
 		# maternal features
@@ -436,6 +610,8 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 		# (build_features_nb_icd, [ feature_index_nb_icd, feature_headers_nb_icd]),
 		# (build_features_del_icd, [ feature_index_mat_deldiag, feature_headers_mat_deldiag ]),
 		(build_features_mat_ethn, [ feature_index_mat_ethn, feature_headers_mat_ethn]), #
+		(build_features_mat_insurance1, [ feature_index_mat_insurance1, feature_headers_mat_insurance1]), #
+		(build_features_mat_insurance2, [ feature_index_mat_insurance2, feature_headers_mat_insurance2]),
 		(build_features_mat_race, [ feature_index_mat_race, feature_headers_mat_race]),
 		(build_features_mat_lang, [ feature_index_mat_lang, feature_headers_mat_lang]),
 		(build_features_mat_natn, [ feature_index_mat_natn, feature_headers_mat_natn]),
@@ -444,7 +620,7 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 		(build_features_mat_agedel, [ feature_index_mat_agedeliv, feature_headers_age_deliv])
 	]
 
-	features = np.zeros((len(data_dic.keys()), sum([len(f[1][1]) for f in funcs ]) ), dtype=bool)
+	features = np.zeros((len(data_dic.keys()), sum([len(f[1][1]) for f in funcs ]) ), dtype=float)
 	
 	headers = []
 	for (pos, f ) in enumerate(funcs):

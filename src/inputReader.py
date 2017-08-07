@@ -7,7 +7,6 @@ import time
 from datetime import timedelta
 from dateutil import parser
 import numpy as np
-import outcome_def_pediatric_obesity
 
 def load_csv_input():
 	print('loading data:', config_file.input_csv)
@@ -16,7 +15,10 @@ def load_csv_input():
 	data = pd.concat([data1, data2])
 	print('done')
 	return (data)
-	
+
+def load_mom_csv_input():
+	return pd.read_csv(config_file.mom_input_csv[0],delimiter=config_file.input_csv_delimiter)
+
 def analyse_ages(data):
 	birth = pd.to_datetime(data[config_file.input_csv_birth_colname])
 	order = pd.to_datetime(data[config_file.input_csv_order_colname])
@@ -86,6 +88,7 @@ def parse_data(data):
 			pass
 		try:	
 			meds = item[config_file.input_csv_med_colname]
+			meds_dic = parse_medications(meds)
 		except ValueError:
 			pass
 		try:	
@@ -105,7 +108,8 @@ def parse_data(data):
 			db[mid] = {}
 			db[mid]['diags']={}
 			db[mid]['vitals']={}
-			db[mid]['labs']={}		
+			db[mid]['labs']={}	
+			db[mid]['meds']={}		
 
 		db[mid]['bdate'] = bdate
 		db[mid]['gender'] = gender
@@ -145,6 +149,12 @@ def parse_data(data):
 			else:
 				db[mid]['diags'][k] = [[odate, diags_dic[k]]]
 
+		for k in meds_dic.keys():
+			if k in db[mid]['meds']:
+				db[mid]['meds'][k].append([odate, meds_dic[k]])
+			else:
+				db[mid]['meds'][k] = [[odate, meds_dic[k]]]
+
 		for k in labs_dic.keys():
 			if k in db[mid]['labs']:
 				db[mid]['labs'][k].append([odate, labs_dic[k]])
@@ -155,7 +165,11 @@ def parse_mother_data(data):
 	db = {}
 	for ix, item in data.iterrows():
 		try:
-			mid = item[config_file.input_csv_mothers_MRN]
+			mid = item[config_file.input_csv_newborn_MRN]
+		except ValueError:
+			pass
+		try:
+			mom_mrn = item[config_file.input_csv_mothers_MRN]
 		except ValueError:
 			pass	
 		try:
@@ -218,6 +232,7 @@ def parse_mother_data(data):
 			db[mid]['nbdiags']={}
 			db[mid]['deldiags']={}
 
+		db[mid]['mom_mrn'] = mom_mrn
 		db[mid]['ethnicity'] = ethnicity
 		db[mid]['race'] = race
 		db[mid]['nationality'] = nationality
@@ -274,6 +289,22 @@ def parse_diag_dic(str1):
 		diag[ks[0]] = 1
 	return diag
 
+def parse_medications(str1):
+	meds = {}
+	ws = re.split('\|+ ', str1.strip())
+	
+	if len(ws) == 0:
+		return meds
+
+	for w in ws:
+		if w.strip() == '':
+			continue
+		# ks = re.split(' ', w.strip())
+		# print(w)
+		meds[w.strip()] = 1
+
+	return meds
+
 def parse_labs_dic(str1, str2):
 	d1 = {}
 	ws1 = re.split('\|+ ', str1.strip()) #lab codes
@@ -281,7 +312,7 @@ def parse_labs_dic(str1, str2):
 		str2 = str2.lower().replace('positive', '1').replace('pos','1').replace('negative','-1').replace('neg','-1')
 		ws2 = re.split('\|+ ', str2.strip()) #results
 	except:
-		#print (str2)
+		# print ('str2', str2)
 		return d1
 
 	if len(ws1) == 0 or len(ws1) != len(ws2):
@@ -292,10 +323,15 @@ def parse_labs_dic(str1, str2):
 			continue
 		ks = re.split(' ', w.strip())
 		try:
-			d1[ks[0]] = float(ws2[i])
+			d1[w.strip()] = float(ws2[i])
 		except ValueError:
-			pass #print(ws1[i], ws2[i])
+			pass #print('value error in parsing', ws1[i], ws2[i])
 	return d1
+
+def run_builddata():
+	(data) = load_csv_input()
+	db = parse_data(data)
+	return db
 
 if __name__=='__main__':
 	run_builddata()
