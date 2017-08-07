@@ -77,17 +77,29 @@ def build_features_vitalLatest(patient_data, maternal_data, reference_date_start
 				# print('error with', (code, edate, vitalval) )
 	return res
 
-def build_features_vitalAverage_0_6(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 6)
+def build_features_vitalAverage_0_3(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 3)
 
-def build_features_vitalAverage_6_12(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 6, 12)
+def build_features_vitalAverage_3_6(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 3, 6)
 
-def build_features_vitalAverage_12_18(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 12, 18)
+def build_features_vitalAverage_6_9(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 6, 9)
 
-def build_features_vitalAverage_18_24(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 18, 24)
+def build_features_vitalAverage_9_12(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 9, 12)
+
+def build_features_vitalAverage_12_15(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 12, 15)
+
+def build_features_vitalAverage_15_18(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 15, 18)
+
+def build_features_vitalAverage_18_21(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 18, 21)
+
+def build_features_vitalAverage_21_24(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+	return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 21, 24)
 
 def build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, frommonth, tomonth):
 	res = np.zeros(len(feature_headers), dtype=float)
@@ -288,7 +300,6 @@ def build_feature_matinsurance2_index():
 	feature_headers = ['Second_Insur:'+ i for i in codesNnames2]
 	return feature_index, feature_headers
 
-
 def build_feature_matethn_index():
 	try:
 		codesNnames = [l.strip().decode('utf-8') for l in open(config_file.BM_EthnicityList, 'rb').readlines()]
@@ -388,13 +399,17 @@ def build_feature_Mat_ICD_index():
 	feature_index = {}
 	feature_headers = []
 	for (ix, icd) in enumerate(icd9 + icd10):
-		icd_code = icd.split(' ')[0].strip()
-		if icd_code in feature_index:
-			feature_index[icd_code].append(ix)
-			# print('double!!', icd_code)
-		else:
-			feature_index[icd_code] = [ix]
-	feature_headers = ['MAT_Diagnosis:' + i for i in  (icd9 + icd10)]
+		icd_codes = icd.split('|')[0].strip().split(' ')
+		icd_codes_desc = icd.split('|')[1].strip()
+		# print(icd_codes_desc)
+		feature_headers.append('Maternal Diagnosis:'+icd_codes_desc)
+		for icd_code in icd_codes:
+			if icd_code in feature_index:
+				feature_index[icd_code].append(ix)
+				# print('warning - double icd in 9&10:', icd_code)
+			else:
+				feature_index[icd_code] = [ix]
+	# feature_headers = ['Diagnosis:' + i for i in  (icd9 + icd10)]
 	return feature_index, feature_headers
 def build_feature_NB_ICD_index():
 	try:
@@ -408,13 +423,17 @@ def build_feature_NB_ICD_index():
 	feature_index = {}
 	feature_headers = []
 	for (ix, icd) in enumerate(icd9 + icd10):
-		icd_code = icd.split(' ')[0].strip()
-		if icd_code in feature_index:
-			feature_index[icd_code].append(ix)
-			# print('double!!', icd_code)
-		else:
-			feature_index[icd_code] = [ix]
-	feature_headers = ['NB_Diagnosis:' + i for i in  (icd9 + icd10)]
+		icd_codes = icd.split('|')[0].strip().split(' ')
+		icd_codes_desc = icd.split('|')[1].strip()
+		# print(icd_codes_desc)
+		feature_headers.append('Newborn Diagnosis:'+icd_codes_desc)
+		for icd_code in icd_codes:
+			if icd_code in feature_index:
+				feature_index[icd_code].append(ix)
+				# print('warning - double icd in 9&10:', icd_code)
+			else:
+				feature_index[icd_code] = [ix]
+	# feature_headers = ['Diagnosis:' + i for i in  (icd9 + icd10)]
 	return feature_index, feature_headers
 
 def build_feature_gender_index():
@@ -505,7 +524,6 @@ def build_feature_lab_index():
 		labsfile = [l.strip().decode("utf-8")  for l in open(config_file.labslist, 'rb').readlines()]
 	except:
 		labsfile = [l.strip().decode('latin-1')  for l in open(config_file.labslist, 'rb').readlines()]
-	
 	feature_index = {}
 	feature_headers = []
 	for (ix, labcd) in enumerate(labsfile):
@@ -554,7 +572,7 @@ def build_feature_ICD_index():
 		icd_codes = icd.split('|')[0].strip().split(' ')
 		icd_codes_desc = icd.split('|')[1].strip()
 		# print(icd_codes_desc)
-		feature_headers.append(icd_codes_desc)
+		feature_headers.append('Diagnosis:' + icd_codes_desc)
 		for icd_code in icd_codes:
 			if icd_code in feature_index:
 				feature_index[icd_code].append(ix)
@@ -599,15 +617,19 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 		(build_features_ethn, [ feature_index_ethn, feature_headers_ethn]),
 		(build_features_race, [ feature_index_race, feature_headers_race]),
 		(build_features_vitalLatest, [ feature_index_vitalLatest, [h+'-latest' for h in feature_headers_vitalsLatest]]),
-		(build_features_vitalAverage_0_6, [ feature_index_vitalLatest, [h+'-avg0to6' for h in feature_headers_vitalsLatest]]),
-		(build_features_vitalAverage_6_12, [ feature_index_vitalLatest, [h+'-avg6to12' for h in feature_headers_vitalsLatest]]),
-		(build_features_vitalAverage_12_18, [ feature_index_vitalLatest, [h+'-avg12to18' for h in feature_headers_vitalsLatest]]),
-		(build_features_vitalAverage_18_24, [ feature_index_vitalLatest, [h+'-avg18to24' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_0_3, [ feature_index_vitalLatest, [h+'-avg0to3' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_3_6, [ feature_index_vitalLatest, [h+'-avg3to6' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_6_9, [ feature_index_vitalLatest, [h+'-avg6to9' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_9_12, [ feature_index_vitalLatest, [h+'-avg9to12' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_12_15, [ feature_index_vitalLatest, [h+'-avg12to15' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_15_18, [ feature_index_vitalLatest, [h+'-avg15to18' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_18_21, [ feature_index_vitalLatest, [h+'-avg18to21' for h in feature_headers_vitalsLatest]]),
+		(build_features_vitalAverage_21_24, [ feature_index_vitalLatest, [h+'-avg21to24' for h in feature_headers_vitalsLatest]]),
 		# environment
 		(build_features_zipcd, [ feature_index_zipcd, feature_headers_zipcd]),
 		# maternal features
-		# (build_features_mat_icd, [ feature_index_mat_icd, feature_headers_mat_icd]), #
-		# (build_features_nb_icd, [ feature_index_nb_icd, feature_headers_nb_icd]),
+		(build_features_mat_icd, [ feature_index_mat_icd, feature_headers_mat_icd]), #
+		(build_features_nb_icd, [ feature_index_nb_icd, feature_headers_nb_icd]),
 		# (build_features_del_icd, [ feature_index_mat_deldiag, feature_headers_mat_deldiag ]),
 		(build_features_mat_ethn, [ feature_index_mat_ethn, feature_headers_mat_ethn]), #
 		(build_features_mat_insurance1, [ feature_index_mat_insurance1, feature_headers_mat_insurance1]), #
