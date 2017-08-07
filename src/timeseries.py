@@ -1,15 +1,31 @@
 # from: http://nbviewer.jupyter.org/github/alexminnaar/time-series-classification-and-clustering/blob/master/Time%20Series%20Classification%20and%20Clustering.ipynb
 import numpy as np
 import random
+import math
+try:
+    import matplotlib.pyplot as plt
+except:
+    print('cant plot. install matplotlib if you want to visualize')
+
+
+def load_temporal_data(xtrain, headers):
+    print(headers)
+    print(xtrain.shape)
+    vital_count = 9
+    newh = headers.reshape(vital_count, 11)
+    newx = xtrain.reshape(xtrain.shape[0], vital_count, 11)
+    return newx[:,1:,:], newh[1:,:]
 
 
 def euclid_dist(t1,t2):
     return np.sqrt(sum((t1-t2)**2))
 
-def euclid_dist_w_missing(t1,t2):
-    nonzeros = (t1!=0) & (t2!=0)
+def euclid_dist_w_missing(t1, t2):
+    nonzeros = (t1 != 0) & (t2 != 0)
+    # print(nonzeros.sum())
     if nonzeros.sum() == 0:
         return float('inf')
+    # print( (t1[nonzeros]-t2[nonzeros])**2)
     return np.sqrt(sum((t1[nonzeros]-t2[nonzeros])**2))/nonzeros.sum()
 
 def LB_Keogh(s1,s2,r):
@@ -42,33 +58,57 @@ def DTWDistance(s1, s2,w):
         
     return np.sqrt(DTW[len(s1)-1, len(s2)-1])
 
-def k_means_clust(data, num_clust, num_iter, w=5):
-    centroids = random.sample(data,num_clust)
+def k_means_clust(data, num_clust, num_iter, headers):
+    print('clustering begins. this will take a few minutes depending on iterations:', num_iter, ' and number of clusters:', num_clust)
+    centroids = random.sample(list(data), num_clust)
     counter = 0
+    trendVars = None
     for n in range(num_iter):
+        trendVars = np.zeros((data.shape[0], num_clust), dtype=float)
         counter+=1
-        print counter
         assignments={}
         #assign data points to clusters
         for ind, i in enumerate(data):
             min_dist=float('inf')
             closest_clust=None
-            for c_ind,j in enumerate(centroids):
-                cur_dist=euclid_dist_w_missing(i,j) #DTWDistance(i,j,w)
+            for c_ind, j in enumerate(centroids):
+                cur_dist=euclid_dist_w_missing(i, j) #DTWDistance(i,j,w)
                 if cur_dist<min_dist:
                     min_dist=cur_dist
-                    closest_clust=c_ind
+                    closest_clust = c_ind
+            trendVars[ind, closest_clust] = 1.0
             if closest_clust in assignments:
                 assignments[closest_clust].append(ind)
             else:
-                assignments[closest_clust]=[]
+                assignments[closest_clust]=[ind]
     
         #recalculate centroids of clusters
         for key in assignments:
             clust_sum=0
+            clust_cnt=np.zeros(data[0].shape, dtype=int)
             for k in assignments[key]:
-                clust_sum=clust_sum+data[k]
-            centroids[key]=[m/len(assignments[key]) for m in clust_sum]
-    
-    return centroids, assignments
+                clust_sum += data[k]
+                clust_cnt += (data[k] != 0) * 1
+            clust_cnt[clust_cnt == 0] = 1
+            centroids[key] = clust_sum / clust_cnt 
+    cnt_clusters = [len(assignments[k]) for k in assignments]
+    cnt_clusters.sort()
+    print("Done! Number of datapoints per cluster is ", cnt_clusters)
+    return centroids, assignments, trendVars
 
+def plot_trends(centroids, headers):
+    # plot_trends(centroids, headers)
+    vital_types = [h.strip('-avg0to3').split(':')[1] for h in headers[0,:]]
+    print(vital_types)
+    sizex = math.floor(np.sqrt(len(centroids)))
+    sizey = math.ceil(np.sqrt(len(centroids)))
+    fig, axes = plt.subplots(sizex, sizey)
+    for i in range(0, sizex):
+        for j in range(0, sizey):
+            centroids_ix =  i*sizey + j
+            if centroids_ix >= len(centroids):
+                break
+            [axes[i,j].plot(centroids[centroids_ix][:,vitalix], label=vital_types[vitalix]) for vitalix in range(0,len(vital_types))]
+    axes[0,0].legend(fontsize = 6)
+    
+                
