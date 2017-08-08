@@ -161,14 +161,16 @@ def variable_subset(x, varsubset, h):
 
 def add_temporal_features(x2, feature_headers, num_clusters, num_iters):
 	#frst make sure only vital values are in x2.
+	if feature_headers.__class__ == list:
+		feature_headers = np.array(feature_headers)
 	header_vital_ix = [h.startswith('Vital') for h in feature_headers]
 	headers_vital = feature_headers[header_vital_ix]
 	x2_vitals = x2[:, header_vital_ix]
 	import timeseries
 	xnew, hnew = timeseries.load_temporal_data(x2_vitals, headers_vital)
-	centroids, assignments, trendArray = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew)
+	centroids, assignments, trendArray, standardDevCentroids = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew)
 	trend_headers = ['Trend:'+str(i+1) for i in range(0, len(centroids))]
-	return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew
+	return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids
 
 def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=20, num_iters=100): #filterSTR='Gender:0 male'
 	x1, y1, y1label, feature_headers = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile)
@@ -176,7 +178,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 	x2 = normalize(x2)
 	if len(variablesubset) != 0:
 		x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
-	x2, feature_headers, centroids, hnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters)
+	x2, feature_headers, centroids, hnew, standardDevCentroids = add_temporal_features(x2, feature_headers, num_clusters, num_iters)
 	print('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
 	print ('normalizing output.'); y2 = (y2-y2.mean())/y2.std()
 
@@ -268,7 +270,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 
 	for k in feature_categories:
 		print (k, ":", feature_categories[k])
-	return (filterSTR, sig_headers,  centroids, hnew) #, feature_headers, (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel))
+	return (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids) #, feature_headers, (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel))
 		# print('weight:' + str(weights[i]) + ' | ' + factors[i] + ' | occ:' + str(occurances[i])) + ' | OR:' + str(oratio) + ' [' + str(low_OR) + ' ' + str(high_OR) +']' 
 	# 	if factors[i].startswith('Zipcode'):
 	# 		zip_weights[factors[i].split(':')[1]] = weights[i]
