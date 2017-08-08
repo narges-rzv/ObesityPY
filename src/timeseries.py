@@ -1,6 +1,7 @@
 # from: http://nbviewer.jupyter.org/github/alexminnaar/time-series-classification-and-clustering/blob/master/Time%20Series%20Classification%20and%20Clustering.ipynb
 import numpy as np
 import random
+random.seed(1)
 import math
 try:
     import matplotlib.pyplot as plt
@@ -83,20 +84,32 @@ def k_means_clust(data, num_clust, num_iter, headers):
                 assignments[closest_clust]=[ind]
     
         #recalculate centroids of clusters
+        standardDevCentroids = np.zeros((num_clust, data[0].shape[0], data[0].shape[1]), dtype=float)
         for key in assignments:
-            clust_sum=0
-            clust_cnt=np.zeros(data[0].shape, dtype=int)
+            clust_sum = np.zeros(data[0].shape, dtype=float)
+            clust_cnt = np.zeros(data[0].shape, dtype=float)
+
             for k in assignments[key]:
                 clust_sum += data[k]
                 clust_cnt += (data[k] != 0) * 1
             clust_cnt[clust_cnt == 0] = 1
             centroids[key] = clust_sum / clust_cnt 
-    cnt_clusters = [len(assignments[k]) for k in assignments]
-    cnt_clusters.sort()
-    print("Done! Number of datapoints per cluster is ", cnt_clusters)
-    return centroids, assignments, trendVars
 
-def plot_trends(centroids, headers):
+            if n == num_iter - 1:
+                clust_sum=np.zeros(data[0].shape, dtype=float)
+                clust_cnt=np.zeros(data[0].shape, dtype=float)
+                for k in assignments[key]:
+                    nonzeroix = ((data[k]!=0) & (centroids[key] != 0)) * 1.0
+                    clust_sum += (nonzeroix * data[k] - nonzeroix * centroids[key]) ** 2
+                    clust_cnt += nonzeroix
+                clust_cnt[clust_cnt == 0] = 1.0
+                standardDevCentroids[key][:,:] = clust_sum / clust_cnt 
+
+    cnt_clusters = [len(assignments[k]) for k in assignments]
+    print("Done! Number of datapoints per cluster is ", cnt_clusters)
+    return centroids, assignments, trendVars, standardDevCentroids
+
+def plot_trends(centroids, headers, standardDevCentroids):
     # plot_trends(centroids, headers)
     vital_types = [h.strip('-avg0to3').split(':')[1] for h in headers[0,:]]
     print(vital_types)
@@ -108,7 +121,9 @@ def plot_trends(centroids, headers):
             centroids_ix =  i*sizey + j
             if centroids_ix >= len(centroids):
                 break
-            [axes[i,j].plot(centroids[centroids_ix][:,vitalix], label=vital_types[vitalix]) for vitalix in range(0,len(vital_types))]
+            for vitalix in range(0, len(vital_types)):
+                axes[i,j].plot(centroids[centroids_ix][:,vitalix], label=vital_types[vitalix])
+                axes[i,j].fill_between(range(len(centroids[centroids_ix][:,vitalix])), centroids[centroids_ix][:,vitalix]+standardDevCentroids[centroids_ix][:,vitalix], centroids[centroids_ix][:,vitalix]-standardDevCentroids[centroids_ix][:,vitalix], alpha=0.1)
     axes[0,0].legend(fontsize = 6)
     
                 
