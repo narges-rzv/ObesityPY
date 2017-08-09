@@ -93,7 +93,7 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers):
 	if modelType == 'mlp':
 		hyperparamlist = [(10,), (50,), (10,10), (50,10), (100,)]
 	if modelType == 'randomforest':
-		hyperparamlist = [(5000,50), (5000,100), (10000,100)]
+		hyperparamlist = [(2000,10), (2000,50), (2000,100)]
 	if modelType == 'temporalCNN':
 		hyperparamlist = [(0.1)]
 
@@ -169,20 +169,20 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters):
 	import timeseries
 	xnew, hnew = timeseries.load_temporal_data(x2_vitals, headers_vital)
 	centroids, assignments, trendArray, standardDevCentroids = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew)
-	trend_headers = ['Trend:'+str(i+1) for i in range(0, len(centroids))]
+	trend_headers = ['Trend:'+str(i) for i in range(0, len(centroids))]
 	return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids
 
 def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=20, num_iters=100): #filterSTR='Gender:0 male'
 	x1, y1, y1label, feature_headers = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile)
 	ix, x2, y2, y2label = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile)
 	x2 = normalize(x2)
+	x2, feature_headers, centroids, hnew, standardDevCentroids = add_temporal_features(x2, feature_headers, num_clusters, num_iters)
 	if len(variablesubset) != 0:
 		x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
-	x2, feature_headers, centroids, hnew, standardDevCentroids = add_temporal_features(x2, feature_headers, num_clusters, num_iters)
 	print('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
 	print ('normalizing output.'); y2 = (y2-y2.mean())/y2.std()
 
-	print ('Predicting BMI at age:'+str(agex_low)+ '-'+str(agex_high)+ ' from data in ages:'+ str(months_from)+'-'+str(months_to*-1) + '')
+	print ('Predicting BMI at age:'+str(agex_low)+ ' to '+str(agex_high)+ 'years, from data in ages:'+ str(months_from)+'-'+str(months_to) + ' months')
 	if filterSTR != '':
 		print ('filtering patients with: ' , filterSTR)
 
@@ -212,7 +212,6 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 		r2test_ste = (1.96/np.sqrt(iters)) * r2testlist.std()
 	else:
 		(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test) = train_regression(x2, y2, y2label, percentile, modelType, feature_headers)	
-		return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers) 
 		model_weights_conf_term = np.zeros((x2.shape[1]), dtype=float)
 		test_auc_mean = auc_test; r2test_mean= r2test;
 		test_auc_mean_ste = 0; r2test_ste=0

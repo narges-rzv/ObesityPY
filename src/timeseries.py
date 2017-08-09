@@ -123,6 +123,7 @@ def plot_trends(centroids, headers, standardDevCentroids):
                 break
             for vitalix in range(0, len(vital_types)):
                 axes[i,j].plot(centroids[centroids_ix][:,vitalix], label=vital_types[vitalix])
+                axes[i,j].set_title('Trend:'+str(centroids_ix))
                 axes[i,j].fill_between(range(len(centroids[centroids_ix][:,vitalix])), centroids[centroids_ix][:,vitalix]+standardDevCentroids[centroids_ix][:,vitalix], centroids[centroids_ix][:,vitalix]-standardDevCentroids[centroids_ix][:,vitalix], alpha=0.1)
     axes[0,0].legend(fontsize = 6)
     

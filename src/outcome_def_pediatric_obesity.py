@@ -11,7 +11,7 @@ def init():
 		load_CDC_refs()
 
 def load_CDC_refs(inputfile='None'):
-	if inputfile =='None'
+	if inputfile =='None':
 		inputfile = config.CDC_BMI_Ref
 	global CDC_Ranges_95th_percentile
 	rawdata = np.loadtxt(config.CDC_BMI_Ref, delimiter=',')
