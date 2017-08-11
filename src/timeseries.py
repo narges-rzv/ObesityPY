@@ -15,7 +15,7 @@ def load_temporal_data(xtrain, headers):
     vital_count = 9
     newh = headers.reshape(vital_count, 11)
     newx = xtrain.reshape(xtrain.shape[0], vital_count, 11)
-    return newx[:,1:,:], newh[1:,:]
+    return newx[:,1:,1:3], newh[1:,1:3]
 
 
 def euclid_dist(t1,t2):
@@ -77,6 +77,8 @@ def k_means_clust(data, num_clust, num_iter, headers):
                 if cur_dist<min_dist:
                     min_dist=cur_dist
                     closest_clust = c_ind
+                if closest_clust == None:
+                    closest_clust = 0
             trendVars[ind, closest_clust] = 1.0
             if closest_clust in assignments:
                 assignments[closest_clust].append(ind)
