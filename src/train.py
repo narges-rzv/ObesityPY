@@ -137,7 +137,7 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers):
 	print('AUC test: {0:4.3f}'.format(metrics.auc(fpr, tpr))+' Explained Variance Score Test: {0:4.3f}'.format(metrics.explained_variance_score(ytest, clf.predict(xtest))))
 	return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test)
 
-def normalize(x):
+def normalize(x, filter_percentile_more_than_percent=5):
 	bin_ix = ( x.min(axis=0) == 0 ) & ( x.max(axis=0) == 1)
 	xcop = x * 1.0
 	xcop[xcop==0] = np.nan
@@ -148,7 +148,9 @@ def normalize(x):
 	std[std==0]=1.0
 	std[bin_ix]=1.0
 	std[np.isnan(std)]=1.0
-	return (x != 0) * ((x - mu)/ std*1.0)  
+	normed_x = (x != 0) * ((x - mu)/ std*1.0)
+	normed_x[abs(normed_x)>filter_percentile_more_than_percent] = 0
+	return normed_x
 
 def variable_subset(x, varsubset, h):
 	print('subsetting variables that are only:', varsubset)
@@ -159,7 +161,7 @@ def variable_subset(x, varsubset, h):
 	print(h, x)
 	return x, h
 
-def add_temporal_features(x2, feature_headers, num_clusters, num_iters):
+def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label):
 	#frst make sure only vital values are in x2.
 	if feature_headers.__class__ == list:
 		feature_headers = np.array(feature_headers)
@@ -167,16 +169,16 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters):
 	headers_vital = feature_headers[header_vital_ix]
 	x2_vitals = x2[:, header_vital_ix]
 	import timeseries
-	xnew, hnew = timeseries.load_temporal_data(x2_vitals, headers_vital)
-	centroids, assignments, trendArray, standardDevCentroids = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew)
-	trend_headers = ['Trend:'+str(i) for i in range(0, len(centroids))]
-	return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids
+	xnew, hnew = timeseries.load_temporal_data(x2_vitals, headers_vital, y2, y2label)
+	centroids, assignments, trendArray, standardDevCentroids, cnt_clusters = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew)
+	trend_headers = ['Trend:'+str(i)+' -occ:'+str(cnt_clusters[i]) for i in range(0, len(centroids))]
+	return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids, cnt_clusters
 
 def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=20, num_iters=100): #filterSTR='Gender:0 male'
 	x1, y1, y1label, feature_headers = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile)
 	ix, x2, y2, y2label = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile)
 	x2 = normalize(x2)
-	x2, feature_headers, centroids, hnew, standardDevCentroids = add_temporal_features(x2, feature_headers, num_clusters, num_iters)
+	x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label)
 	if len(variablesubset) != 0:
 		x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
 	print('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
@@ -269,13 +271,8 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 
 	for k in feature_categories:
 		print (k, ":", feature_categories[k])
-	return (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids) #, feature_headers, (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel))
-		# print('weight:' + str(weights[i]) + ' | ' + factors[i] + ' | occ:' + str(occurances[i])) + ' | OR:' + str(oratio) + ' [' + str(low_OR) + ' ' + str(high_OR) +']' 
-	# 	if factors[i].startswith('Zipcode'):
-	# 		zip_weights[factors[i].split(':')[1]] = weights[i]
-	# return zip_weights
-	#return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, feature_headers)
-
+	return (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters) 
+	
 def train_chain(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=''):
 	notDone = True
 	while notDone == True:

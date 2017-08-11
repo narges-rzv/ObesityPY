@@ -7,27 +7,31 @@ try:
     import matplotlib.pyplot as plt
 except:
     print('cant plot. install matplotlib if you want to visualize')
+import pickle
 
-
-def load_temporal_data(xtrain, headers):
+def load_temporal_data(xtrain, headers, ytrain, ylabels):
     print(headers)
     print(xtrain.shape)
     vital_count = 9
     newh = headers.reshape(vital_count, 11)
     newx = xtrain.reshape(xtrain.shape[0], vital_count, 11)
-    return newx[:,1:,1:3], newh[1:,1:3]
+    pickle.dump(obj=(newx[:,1:,:], newh[1:,:], ytrain, ylabels), file=open('tmpobj_20170811.pkl', 'wb'), protocol=-1)
+    return newx[:,1:,:], newh[1:,:]
 
+def unpickle_data(fname='tmpobj_20170811.pkl'):
+    (newx, newh, ytrain, ylabels) = pickle.load(open(fname, 'rb'))
+    return (newx, newh, ytrain, ylabels)
 
 def euclid_dist(t1,t2):
     return np.sqrt(sum((t1-t2)**2))
 
 def euclid_dist_w_missing(t1, t2):
-    nonzeros = (t1 != 0) & (t2 != 0)
-    # print(nonzeros.sum())
+    #[' BMI', ' BMI Percentile', ' Fundal H', ' HC', ' HC Percentile', ' H', ' Ht Percentile', ' Pre-gravid W', ' W', ' Wt Change', ' Wt Percentile']
+    subset = [True, False, False, False, False, True, False, False, True, False, False]
+    nonzeros = (t1[:,subset] != 0) & (t2[:,subset] != 0)
     if nonzeros.sum() == 0:
         return float('inf')
-    # print( (t1[nonzeros]-t2[nonzeros])**2)
-    return np.sqrt(sum((t1[nonzeros]-t2[nonzeros])**2))/nonzeros.sum()
+    return np.sqrt(sum((t1[:,subset][nonzeros]-t2[:,subset][nonzeros])**2))/nonzeros.sum()
 
 def LB_Keogh(s1,s2,r):
     LB_sum=0
@@ -109,13 +113,13 @@ def k_means_clust(data, num_clust, num_iter, headers):
 
     cnt_clusters = [len(assignments[k]) for k in assignments]
     print("Done! Number of datapoints per cluster is ", cnt_clusters)
-    return centroids, assignments, trendVars, standardDevCentroids
+    return centroids, assignments, trendVars, standardDevCentroids, cnt_clusters
 
-def plot_trends(centroids, headers, standardDevCentroids):
+def plot_trends(centroids, headers, standardDevCentroids, cnt_clusters=[]):
     # plot_trends(centroids, headers)
     vital_types = [h.strip('-avg0to3').split(':')[1] for h in headers[0,:]]
     print(vital_types)
-    sizex = math.floor(np.sqrt(len(centroids)))
+    sizex = math.ceil(np.sqrt(len(centroids)))
     sizey = math.ceil(np.sqrt(len(centroids)))
     fig, axes = plt.subplots(sizex, sizey)
     for i in range(0, sizex):
@@ -123,10 +127,59 @@ def plot_trends(centroids, headers, standardDevCentroids):
             centroids_ix =  i*sizey + j
             if centroids_ix >= len(centroids):
                 break
-            for vitalix in range(0, len(vital_types)):
+            for vitalix in [0, 8]: #range(0, len(vital_types)):
                 axes[i,j].plot(centroids[centroids_ix][:,vitalix], label=vital_types[vitalix])
-                axes[i,j].set_title('Trend:'+str(centroids_ix))
+                axes[i,j].set_title('Trend:'+str(centroids_ix) + ' cnt:'+str(cnt_clusters[centroids_ix]))
                 axes[i,j].fill_between(range(len(centroids[centroids_ix][:,vitalix])), centroids[centroids_ix][:,vitalix]+standardDevCentroids[centroids_ix][:,vitalix], centroids[centroids_ix][:,vitalix]-standardDevCentroids[centroids_ix][:,vitalix], alpha=0.1)
     axes[0,0].legend(fontsize = 6)
     
                 
+
+def build_endtoend_model(x, h, y, ylabels, xtest, ytest, params={'clustercnts':4, 'maxepoch':1000}):
+    try:
+        import tensorflow as tf
+        config = tf.ConfigProto(
+            device_count = {'GPU': 0}
+        )
+        tf.reset_default_graph()
+    except:
+        print ('tensorflow not loading. Make sure it is installed and can be imported')
+        return
+
+    cluster_cnt = params['clustercnts']
+    maxepoch = params['maxepoch']
+    
+    print(x.shape)
+    x_input = tf.placeholder(tf.float32, shape=[None, x[0].shape[0], x[0].shape[1]])
+    print('initiating network with:', cluster_cnt, ' clusters')
+    patterns = []
+    for i in range(0, cluster_cnt):
+        patterns.append( tf.Variable(tf.zeros([x[0].shape[0], x[0].shape[1]]), name='pattern'+str(i)) )
+    # k1 = tf.Variable(tf.zeros([x[0].shape[0], x[0].shape[1]]), name='pattern'+str(0)) 
+    
+    net_pattern = []
+    for p in patterns:
+        net_pattern.append(tf.reduce_mean(tf.squared_difference(x_input, p)))
+    # k2 = tf.squared_difference(x_input, k1)
+
+    net_d = tf.stack(net_pattern)
+    loss = tf.reduce_min(net_d)
+
+    train_step = tf.train.GradientDescentOptimizer(0.1).minimize(loss)
+
+    sess = tf.InteractiveSession()
+    init_op = tf.global_variables_initializer()
+    sess.run(init_op)
+
+    averages = []
+    for ep in range(0, maxepoch):
+        losslist = []
+        for i in range(0,len(x)):
+            out = sess.run([train_step, loss, patterns], feed_dict={x_input:x[i].reshape(-1, x[i].shape[0],x[i].shape[1])})
+            # print(out[2][0])
+            losslist.append(out[1])
+        
+        averages.append(sum(losslist)/len(losslist))
+        plt.plot(averages)
+        plt.draw()
+        
