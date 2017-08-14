@@ -15,7 +15,7 @@ def load_temporal_data(xtrain, headers, ytrain, ylabels):
     vital_count = 9
     newh = headers.reshape(vital_count, 11)
     newx = xtrain.reshape(xtrain.shape[0], vital_count, 11)
-    pickle.dump(obj=(newx[:,1:,:], newh[1:,:], ytrain, ylabels), file=open('tmpobj_20170811.pkl', 'wb'), protocol=-1)
+    pickle.dump(obj=(newx[:,1:,:], newh[1:,:], ytrain, ylabels), file=open('tmpobj_20170811.pkl', 'wb'), protocol=2)
     return newx[:,1:,:], newh[1:,:]
 
 def unpickle_data(fname='tmpobj_20170811.pkl'):
