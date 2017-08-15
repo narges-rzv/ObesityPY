@@ -165,20 +165,32 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2la
 	#frst make sure only vital values are in x2.
 	if feature_headers.__class__ == list:
 		feature_headers = np.array(feature_headers)
-	header_vital_ix = [h.startswith('Vital') for h in feature_headers]
+	header_vital_ix = np.array([h.startswith('Vital') for h in feature_headers])
 	headers_vital = feature_headers[header_vital_ix]
 	x2_vitals = x2[:, header_vital_ix]
 	import timeseries
 	xnew, hnew = timeseries.load_temporal_data(x2_vitals, headers_vital, y2, y2label)
-	centroids, assignments, trendArray, standardDevCentroids, cnt_clusters = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew, distType)
+	centroids, assignments, trendArray, standardDevCentroids, cnt_clusters, distances = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew, distType=distType)
 	trend_headers = ['Trend:'+str(i)+' -occ:'+str(cnt_clusters[i]) for i in range(0, len(centroids))]
-	return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids, cnt_clusters
+	return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids, cnt_clusters, distances
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=20, num_iters=100, distType='euclidean'): #filterSTR='Gender:0 male'
+def filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude):
+	ix_header = np.ones((len(corr_headers)), dtype=bool)
+	for ind, item in enumerate(corr_headers):
+		if (item in corr_vars_exclude) or sum([item.startswith(ii) for ii in corr_vars_exclude]) > 0 :
+			ix_header[ind] = False
+	print(ix_header.sum())
+	return corr_headers[ix_header], corr_matrix[:,ix_header]
+
+def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=20, num_iters=100, distType='euclidean', corr_vars_exclude=['Vital', 'Trend']): #filterSTR='Gender:0 male'
 	x1, y1, y1label, feature_headers = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile)
 	ix, x2, y2, y2label = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile)
-	x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType)
 	x2 = normalize(x2)
+	x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType)
+	corr_headers = feature_headers
+	corr_matrix = np.corrcoef(x2.transpose())
+	corr_headers_filtered, corr_matrix_filtered = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
+
 	if len(variablesubset) != 0:
 		x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
 	print('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
@@ -244,6 +256,10 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 	for i in range(0, (abs(model_weights)>0).sum()):
 		fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, xtest_reordered[:,i].ravel())
 		feature_auc_indiv = metrics.auc(fpr, tpr)
+		ix_in_corr_matrix = np.array([hi == factors[i] for hi in corr_headers])
+		corrs = corr_matrix_filtered[ix_in_corr_matrix,:].ravel()
+		top_corr_ix = np.argsort(-1*corrs)
+		corr_string = '    Correlated most with:'+'\n    '.join( [str(corr_headers_filtered[top_corr_ix[j]])+ ':' + "{0:4.3f}".format(corrs[top_corr_ix[j]]) for j in range(0,10)]  ) 
 
 		tp = ((y2label > 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
 		tn = ((y2label == 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
@@ -268,6 +284,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 			sig_headers.append(factors[i])
 			star = '*'
 		print("{8} {3} | coef {0:4.3f} [{1:4.3f} {2:4.3f}] | OR_adj {9:4.3f} [{10:4.3f} {11:4.3f}] | occ: {4} | OR_unadj: {5:4.3f} [{6:4.3f} {7:4.3f}] | indiv AUC: {12:4.3f}".format(weights[i], weights[i]-terms_sorted[i], weights[i]+terms_sorted[i], factors[i], occurances[i], oratio, low_OR, high_OR, star, np.exp(weights[i]), np.exp(weights[i]-terms_sorted[i]), np.exp(weights[i]+terms_sorted[i]), feature_auc_indiv))
+		print(corr_string)
 
 	for k in feature_categories:
 		print (k, ":", feature_categories[k])

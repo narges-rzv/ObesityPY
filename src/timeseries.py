@@ -9,14 +9,17 @@ except:
     print('cant plot. install matplotlib if you want to visualize')
 import pickle
 
-subset = [True, False, False, False, False, False, False, False, False, False, False]
+#[' BMI', ' BMI Percentile', ' Fundal H', ' HC', ' HC Percentile', ' H', ' Ht Percentile', ' Pre-gravid W', ' W', ' Wt Change', ' Wt Percentile']
+subset = np.array([False, False, False, True, False, True, False, False, True, False, False])
 
 def load_temporal_data(xtrain, headers, ytrain, ylabels):
-    print(headers)
     print(xtrain.shape)
+    print('temporal headers', headers)
     vital_count = 9
-    newh = headers.reshape(vital_count, 11)
-    newx = xtrain.reshape(xtrain.shape[0], vital_count, 11)
+    newh = np.array(headers).reshape(vital_count, len(subset))
+    newh = newh[:, subset]
+    newx = xtrain.reshape(xtrain.shape[0], vital_count, len(subset))
+    newx = newx[:, :, subset]
     pickle.dump(obj=(newx[:,1:,:], newh[1:,:], ytrain, ylabels), file=open('tmpobj_20170811.pkl', 'wb'), protocol=2)
     return newx[:,1:,:], newh[1:,:]
 
@@ -28,15 +31,14 @@ def euclid_dist(t1,t2):
     return np.sqrt(sum((t1-t2)**2))
 
 def euclid_dist_w_missing(t1, t2):
-    #[' BMI', ' BMI Percentile', ' Fundal H', ' HC', ' HC Percentile', ' H', ' Ht Percentile', ' Pre-gravid W', ' W', ' Wt Change', ' Wt Percentile']
-    nonzeros = (t1[:,subset] != 0) & (t2[:,subset] != 0)
+    nonzeros = (t1[:,:] != 0) & (t2[:,:] != 0)
     if nonzeros.sum() == 0:
         return float('inf')
-    return np.sqrt(sum((t1[:,subset][nonzeros]-t2[:,subset][nonzeros])**2))/nonzeros.sum()
+    return np.sqrt(sum((t1[:,:][nonzeros]-t2[:,:][nonzeros])**2))/nonzeros.sum()
 
 def DTWDistance(s1, s2, w):
-    nonzeros = (s1[:,subset] != 0) & (s2[:,subset] != 0)
-    t1, t2 = s1[:,subset][nonzeros], s2[:,subset][nonzeros]
+    nonzeros = (s1 != 0) & (s2 != 0)
+    t1, t2 = s1[nonzeros], s2[nonzeros]
 
     DTW={}
     w = max(w, abs(len(t1)-len(t2)))
@@ -52,15 +54,24 @@ def DTWDistance(s1, s2, w):
             DTW[(i, j)] = dist + min(DTW[(i-1, j)], DTW[(i, j-1)], DTW[(i-1, j-1)])
     return np.sqrt(DTW[len(t1)-1, len(t2)-1])
 
-def k_means_clust(data, num_clust, num_iter, headers, distType='euclidean'):
-    print('clustering begins. this will take a few minutes depending on iterations:', num_iter, ' and number of clusters:', num_clust)
-    centroids = random.sample(list(data), num_clust)
+def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_again=True, distType='euclidean'):
+    
+    if cluster_again == True:
+        print('clustering begins. this will take a few minutes depending on iterations:', num_iter, ' and number of clusters:', num_clust)
+    else:
+        print('not recomputing new clusters but rather assigning data points to the existing clusters.')
+    if centroids == None:
+        centroids = random.sample(list(data), num_clust)
     counter = 0
     trendVars = None
+    if cluster_again != False:
+        num_iter = 1
+
     for n in range(num_iter):
         trendVars = np.zeros((data.shape[0], num_clust), dtype=float)
         counter+=1
         assignments={}
+        distances = np.zeros((data.shape[0]), dtype=float)
         #assign data points to clusters
         for ind, i in enumerate(data):
             min_dist=float('inf')
@@ -76,12 +87,13 @@ def k_means_clust(data, num_clust, num_iter, headers, distType='euclidean'):
                 if closest_clust == None:
                     closest_clust = 0
             trendVars[ind, closest_clust] = 1.0
+            distances[ind] = min_dist
             if closest_clust in assignments:
                 assignments[closest_clust].append(ind)
             else:
                 assignments[closest_clust]=[ind]
     
-        #recalculate centroids of clusters and update avg within-cluster distance
+        #recalculate centroids of clusters and update avg within-cluster distances
         standardDevCentroids = np.zeros((num_clust, data[0].shape[0], data[0].shape[1]), dtype=float)
         for key in assignments:
             clust_sum = np.zeros(data[0].shape, dtype=float)
@@ -91,7 +103,8 @@ def k_means_clust(data, num_clust, num_iter, headers, distType='euclidean'):
                 clust_sum += data[k]
                 clust_cnt += (data[k] != 0) * 1
             clust_cnt[clust_cnt == 0] = 1
-            centroids[key] = clust_sum / clust_cnt 
+            if cluster_again == True:
+                centroids[key] = clust_sum / clust_cnt 
 
             if n == num_iter - 1:
                 clust_sum=np.zeros(data[0].shape, dtype=float)
@@ -105,28 +118,31 @@ def k_means_clust(data, num_clust, num_iter, headers, distType='euclidean'):
 
     cnt_clusters = [len(assignments[k]) for k in assignments]
     print("Done! Number of datapoints per cluster is ", cnt_clusters)
-    return centroids, assignments, trendVars, standardDevCentroids, cnt_clusters
+    print('average distances is:', distances.mean())
+    return centroids, assignments, trendVars, standardDevCentroids, cnt_clusters, distances
 
-def plot_trends(centroids, headers, standardDevCentroids, cnt_clusters=[]):
+def plot_trends(centroids, headers, standardDevCentroids=None, cnt_clusters=[]):
     vital_types = [h.strip('-avg0to3').split(':')[1] for h in headers[0,:]]
     print(vital_types)
-    sizex = math.ceil(np.sqrt(len(centroids)))
-    sizey = math.ceil(np.sqrt(len(centroids)))
+    sizex = int(math.ceil(np.sqrt(len(centroids))))
+    sizey = int(math.ceil(np.sqrt(len(centroids))))
     fig, axes = plt.subplots(sizex, sizey)
     for i in range(0, sizex):
         for j in range(0, sizey):
             centroids_ix =  i*sizey + j
             if centroids_ix >= len(centroids):
                 break
-            for vitalix in np.array(subset).nonzero()[0]: #range(0, len(vital_types)):
+            for vitalix in range(0, len(vital_types)): #np.array(subset).nonzero()[0]:
                 axes[i,j].plot(centroids[centroids_ix][:,vitalix], label=vital_types[vitalix])
-                axes[i,j].set_title('Trend:'+str(centroids_ix) + ' cnt:'+str(cnt_clusters[centroids_ix]))
-                axes[i,j].fill_between(range(len(centroids[centroids_ix][:,vitalix])), centroids[centroids_ix][:,vitalix]+standardDevCentroids[centroids_ix][:,vitalix], centroids[centroids_ix][:,vitalix]-standardDevCentroids[centroids_ix][:,vitalix], alpha=0.1)
+                axes[i,j].set_title('Trend:'+str(centroids_ix) + (' cnt:' + str(cnt_clusters[centroids_ix] if cnt_clusters != [] else '')), fontsize=6)
+                if standardDevCentroids != None:
+                    axes[i,j].fill_between(range(len(centroids[centroids_ix][:,vitalix])), centroids[centroids_ix][:,vitalix]+standardDevCentroids[centroids_ix][:,vitalix], centroids[centroids_ix][:,vitalix]-standardDevCentroids[centroids_ix][:,vitalix], alpha=0.1)
     axes[0,0].legend(fontsize = 6)
+
     
                 
 
-def build_endtoend_model(x, h, y, ylabels, xtest, ytest, params={'clustercnts':4, 'maxepoch':1000}):
+def build_endtoend_model(x, h, y, ylabels, xtest, ytest, num_clust=144, num_iter=100):
     try:
         import tensorflow as tf
         config = tf.ConfigProto(
@@ -137,41 +153,49 @@ def build_endtoend_model(x, h, y, ylabels, xtest, ytest, params={'clustercnts':4
         print ('tensorflow not loading. Make sure it is installed and can be imported')
         return
 
-    cluster_cnt = params['clustercnts']
-    maxepoch = params['maxepoch']
-    
-    
-    print(x.shape)
-    x_input = tf.placeholder(tf.float32, shape=[None, x[0].shape[0], x[0].shape[1]])
-    print('initiating network with:', cluster_cnt, ' clusters')
+    plt.ion()
+    # x = x[:, :, subset]
+    # xtest = xtest[:, : , subset]
+    # h_subset = np.array(h)[:, subset]
+    initialized_patterns = random.sample(list(x), num_clust)
+    x_input = tf.placeholder(tf.float64, shape=[None, x[0].shape[0], x[0].shape[1]])
+    keep_prob = tf.placeholder(tf.float64)
+    print('initiating network with:', num_clust, ' clusters')
     patterns = []
-    for i in range(0, cluster_cnt):
-        patterns.append( tf.Variable(tf.zeros([x[0].shape[0], x[0].shape[1]]), name='pattern'+str(i)) )
-    # k1 = tf.Variable(tf.zeros([x[0].shape[0], x[0].shape[1]]), name='pattern'+str(0)) 
+    for i in range(0, num_clust): #tf.zeros([x[0].shape[0], x[0].shape[1]])
+        patterns.append( tf.Variable(initialized_patterns[i], name='pattern'+str(i)) )
     
+    cluster = []
     net_pattern = []
     for p in patterns:
-        net_pattern.append(tf.reduce_mean(tf.squared_difference(x_input, p)))
-    # k2 = tf.squared_difference(x_input, k1)
+        net_pattern.append(tf.reduce_mean(tf.squared_difference(x_input, tf.nn.dropout(p, keep_prob))))
 
     net_d = tf.stack(net_pattern)
     loss = tf.reduce_min(net_d)
-
-    train_step = tf.train.GradientDescentOptimizer(0.1).minimize(loss)
+    cluster_assignment = tf.argmin(net_d)
+    train_step = tf.train.GradientDescentOptimizer(0.01).minimize(loss)
 
     sess = tf.InteractiveSession()
     init_op = tf.global_variables_initializer()
     sess.run(init_op)
 
     averages = []
-    for ep in range(0, maxepoch):
+    assignments = np.zeros((len(x)), dtype=int)
+    patterns_numpy = 0
+    for ep in range(0, num_iter):
         losslist = []
+        randomix = np.arange(0, len(x))
+        np.random.shuffle(randomix)
+        assignments = np.zeros((len(x)), dtype=int)
         for i in range(0,len(x)):
-            out = sess.run([train_step, loss, patterns], feed_dict={x_input:x[i].reshape(-1, x[i].shape[0], x[i].shape[1])})
-            # print(out[2][0])
-            losslist.append(out[1])
-        
+            out = sess.run([train_step, loss, cluster_assignment, patterns], feed_dict={x_input: x[randomix[i]].reshape(-1, x[randomix[i]].shape[0], x[randomix[i]].shape[1]), keep_prob:1})
+            assignments[randomix[i]] = int(out[2])
+            if i == len(x) - 1:
+                patterns_numpy = out[3]
+                losslist.append(out[1])
+                print(len(patterns_numpy), patterns_numpy[0].shape, h_subset.shape)
+                plot_trends(patterns_numpy, h); plt.show()
+                plt.pause(0.01)
         averages.append(sum(losslist)/len(losslist))
-        plt.plot(averages)
-        plt.draw()
-        
+        print(averages)
+    return assignments, patterns_numpy
