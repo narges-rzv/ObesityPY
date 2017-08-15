@@ -9,6 +9,8 @@ except:
     print('cant plot. install matplotlib if you want to visualize')
 import pickle
 
+subset = [True, False, False, False, False, False, False, False, False, False, False]
+
 def load_temporal_data(xtrain, headers, ytrain, ylabels):
     print(headers)
     print(xtrain.shape)
@@ -27,43 +29,30 @@ def euclid_dist(t1,t2):
 
 def euclid_dist_w_missing(t1, t2):
     #[' BMI', ' BMI Percentile', ' Fundal H', ' HC', ' HC Percentile', ' H', ' Ht Percentile', ' Pre-gravid W', ' W', ' Wt Change', ' Wt Percentile']
-    subset = [True, False, False, False, False, True, False, False, True, False, False]
     nonzeros = (t1[:,subset] != 0) & (t2[:,subset] != 0)
     if nonzeros.sum() == 0:
         return float('inf')
     return np.sqrt(sum((t1[:,subset][nonzeros]-t2[:,subset][nonzeros])**2))/nonzeros.sum()
 
-def LB_Keogh(s1,s2,r):
-    LB_sum=0
-    for ind,i in enumerate(s1):
-        
-        lower_bound=min(s2[(ind-r if ind-r>=0 else 0):(ind+r)])
-        upper_bound=max(s2[(ind-r if ind-r>=0 else 0):(ind+r)])
-        
-        if i>upper_bound:
-            LB_sum=LB_sum+(i-upper_bound)**2
-        elif i<lower_bound:
-            LB_sum=LB_sum+(i-lower_bound)**2
-    
-    return np.sqrt(LB_sum)
-def DTWDistance(s1, s2,w):
+def DTWDistance(s1, s2, w):
+    nonzeros = (s1[:,subset] != 0) & (s2[:,subset] != 0)
+    t1, t2 = s1[:,subset][nonzeros], s2[:,subset][nonzeros]
+
     DTW={}
+    w = max(w, abs(len(t1)-len(t2)))
     
-    w = max(w, abs(len(s1)-len(s2)))
-    
-    for i in range(-1,len(s1)):
-        for j in range(-1,len(s2)):
+    for i in range(-1,len(t1)):
+        for j in range(-1,len(t2)):
             DTW[(i, j)] = float('inf')
     DTW[(-1, -1)] = 0
   
-    for i in range(len(s1)):
-        for j in range(max(0, i-w), min(len(s2), i+w)):
-            dist= (s1[i]-s2[j])**2
-            DTW[(i, j)] = dist + min(DTW[(i-1, j)],DTW[(i, j-1)], DTW[(i-1, j-1)])
-        
-    return np.sqrt(DTW[len(s1)-1, len(s2)-1])
+    for i in range(len(t1)):
+        for j in range(max(0, i-w), min(len(t2), i+w)):
+            dist= (t1[i]-t2[j])**2
+            DTW[(i, j)] = dist + min(DTW[(i-1, j)], DTW[(i, j-1)], DTW[(i-1, j-1)])
+    return np.sqrt(DTW[len(t1)-1, len(t2)-1])
 
-def k_means_clust(data, num_clust, num_iter, headers):
+def k_means_clust(data, num_clust, num_iter, headers, distType='euclidean'):
     print('clustering begins. this will take a few minutes depending on iterations:', num_iter, ' and number of clusters:', num_clust)
     centroids = random.sample(list(data), num_clust)
     counter = 0
@@ -77,9 +66,12 @@ def k_means_clust(data, num_clust, num_iter, headers):
             min_dist=float('inf')
             closest_clust=None
             for c_ind, j in enumerate(centroids):
-                cur_dist=euclid_dist_w_missing(i, j) #DTWDistance(i,j,w)
-                if cur_dist<min_dist:
-                    min_dist=cur_dist
+                if distType == 'euclidean':
+                    cur_dist = euclid_dist_w_missing(i, j)
+                else:
+                    cur_dist= DTWDistance(i,j,2) 
+                if cur_dist < min_dist:
+                    min_dist = cur_dist
                     closest_clust = c_ind
                 if closest_clust == None:
                     closest_clust = 0
@@ -89,7 +81,7 @@ def k_means_clust(data, num_clust, num_iter, headers):
             else:
                 assignments[closest_clust]=[ind]
     
-        #recalculate centroids of clusters
+        #recalculate centroids of clusters and update avg within-cluster distance
         standardDevCentroids = np.zeros((num_clust, data[0].shape[0], data[0].shape[1]), dtype=float)
         for key in assignments:
             clust_sum = np.zeros(data[0].shape, dtype=float)
@@ -116,7 +108,6 @@ def k_means_clust(data, num_clust, num_iter, headers):
     return centroids, assignments, trendVars, standardDevCentroids, cnt_clusters
 
 def plot_trends(centroids, headers, standardDevCentroids, cnt_clusters=[]):
-    # plot_trends(centroids, headers)
     vital_types = [h.strip('-avg0to3').split(':')[1] for h in headers[0,:]]
     print(vital_types)
     sizex = math.ceil(np.sqrt(len(centroids)))
@@ -127,7 +118,7 @@ def plot_trends(centroids, headers, standardDevCentroids, cnt_clusters=[]):
             centroids_ix =  i*sizey + j
             if centroids_ix >= len(centroids):
                 break
-            for vitalix in [0, 8]: #range(0, len(vital_types)):
+            for vitalix in np.array(subset).nonzero()[0]: #range(0, len(vital_types)):
                 axes[i,j].plot(centroids[centroids_ix][:,vitalix], label=vital_types[vitalix])
                 axes[i,j].set_title('Trend:'+str(centroids_ix) + ' cnt:'+str(cnt_clusters[centroids_ix]))
                 axes[i,j].fill_between(range(len(centroids[centroids_ix][:,vitalix])), centroids[centroids_ix][:,vitalix]+standardDevCentroids[centroids_ix][:,vitalix], centroids[centroids_ix][:,vitalix]-standardDevCentroids[centroids_ix][:,vitalix], alpha=0.1)
@@ -148,6 +139,7 @@ def build_endtoend_model(x, h, y, ylabels, xtest, ytest, params={'clustercnts':4
 
     cluster_cnt = params['clustercnts']
     maxepoch = params['maxepoch']
+    
     
     print(x.shape)
     x_input = tf.placeholder(tf.float32, shape=[None, x[0].shape[0], x[0].shape[1]])
@@ -175,7 +167,7 @@ def build_endtoend_model(x, h, y, ylabels, xtest, ytest, params={'clustercnts':4
     for ep in range(0, maxepoch):
         losslist = []
         for i in range(0,len(x)):
-            out = sess.run([train_step, loss, patterns], feed_dict={x_input:x[i].reshape(-1, x[i].shape[0],x[i].shape[1])})
+            out = sess.run([train_step, loss, patterns], feed_dict={x_input:x[i].reshape(-1, x[i].shape[0], x[i].shape[1])})
             # print(out[2][0])
             losslist.append(out[1])
         

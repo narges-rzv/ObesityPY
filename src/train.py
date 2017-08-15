@@ -154,14 +154,14 @@ def normalize(x, filter_percentile_more_than_percent=5):
 
 def variable_subset(x, varsubset, h):
 	print('subsetting variables that are only:', varsubset)
-	hix = np.array([hi.split(':')[0].strip() in varsubset for hi in h])
+	hix = np.array([hi.split(':')[0].strip() in varsubset or hi in varsubset for hi in h])
 	print('from ', x.shape[1] ,' variables to ', sum(hix))
 	x = x[:, hix]
 	h = np.array(h)[hix]
 	print(h, x)
 	return x, h
 
-def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label):
+def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType='eucledian'):
 	#frst make sure only vital values are in x2.
 	if feature_headers.__class__ == list:
 		feature_headers = np.array(feature_headers)
@@ -170,15 +170,15 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2la
 	x2_vitals = x2[:, header_vital_ix]
 	import timeseries
 	xnew, hnew = timeseries.load_temporal_data(x2_vitals, headers_vital, y2, y2label)
-	centroids, assignments, trendArray, standardDevCentroids, cnt_clusters = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew)
+	centroids, assignments, trendArray, standardDevCentroids, cnt_clusters = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew, distType)
 	trend_headers = ['Trend:'+str(i)+' -occ:'+str(cnt_clusters[i]) for i in range(0, len(centroids))]
 	return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids, cnt_clusters
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=20, num_iters=100): #filterSTR='Gender:0 male'
+def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=20, num_iters=100, distType='euclidean'): #filterSTR='Gender:0 male'
 	x1, y1, y1label, feature_headers = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile)
 	ix, x2, y2, y2label = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile)
+	x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType)
 	x2 = normalize(x2)
-	x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label)
 	if len(variablesubset) != 0:
 		x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
 	print('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
