@@ -12,20 +12,24 @@ import pickle
 #[' BMI', ' BMI Percentile', ' Fundal H', ' HC', ' HC Percentile', ' H', ' Ht Percentile', ' Pre-gravid W', ' W', ' Wt Change', ' Wt Percentile']
 subset = np.array([False, False, False, True, False, True, False, False, True, False, False])
 
-def load_temporal_data(xtrain, headers, ytrain, ylabels):
+def load_temporal_data(xtrain, headers, ytrain, ylabels, mux=None, stdx=None):
     print(xtrain.shape)
     print('temporal headers', headers)
-    vital_count = 9
-    newh = np.array(headers).reshape(vital_count, len(subset))
-    newh = newh[:, subset]
-    newx = xtrain.reshape(xtrain.shape[0], vital_count, len(subset))
+    time_steps = 9
+    newh = np.array(headers).reshape(time_steps, len(subset))
+    newh = np.array(newh)[:, subset]
+    newx = xtrain.reshape(xtrain.shape[0], time_steps, len(subset))
     newx = newx[:, :, subset]
-    pickle.dump(obj=(newx[:,1:,:], newh[1:,:], ytrain, ylabels), file=open('tmpobj_20170811.pkl', 'wb'), protocol=2)
-    return newx[:,1:,:], newh[1:,:]
+    if mux != None and stdx != None:
+        muxreshape = mux.reshape(time_steps, len(subset))[:,subset]
+        stdxreshape = stdx.reshape(time_steps, len(subset))[:,subset]
+
+    pickle.dump(obj=(newx[:,1:,:], newh[1:,:], ytrain, ylabels, muxreshape[1:,:], stdxreshape[1:,:]), file=open('tmpobj_20170811.pkl', 'wb'), protocol=2)
+    return newx[:,1:,:], newh[1:,:], muxreshape[1:,:], stdxreshape[1:,:]
 
 def unpickle_data(fname='tmpobj_20170811.pkl'):
-    (newx, newh, ytrain, ylabels) = pickle.load(open(fname, 'rb'))
-    return (newx, newh, ytrain, ylabels)
+    (newx, newh, ytrain, ylabels, mux, stdx) = pickle.load(open(fname, 'rb'))
+    return (newx, newh, ytrain, ylabels, mux, stdx)
 
 def euclid_dist(t1,t2):
     return np.sqrt(sum((t1-t2)**2))
@@ -54,17 +58,38 @@ def DTWDistance(s1, s2, w):
             DTW[(i, j)] = dist + min(DTW[(i-1, j)], DTW[(i, j-1)], DTW[(i-1, j-1)])
     return np.sqrt(DTW[len(t1)-1, len(t2)-1])
 
-def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_again=True, distType='euclidean'):
-    
+def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_again=True, distType='euclidean', cross_valid=True):
     if cluster_again == True:
         print('clustering begins. this will take a few minutes depending on iterations:', num_iter, ' and number of clusters:', num_clust)
     else:
+        cross_valid = False
         print('not recomputing new clusters but rather assigning data points to the existing clusters.')
+    
+    if cross_valid == True:
+        hyperparameterlist = [(4,100), (8,100), (16, 100)]
+        best_dist = float('inf')
+        best_hyppar = (0,0)
+        for (nmcl, nitr) in hyperparameterlist:
+            ix_shuffle = np.arange(0, len(data))
+            np.random.shuffle(ix_shuffle)
+            twothirds = int(2*len(data)/3)
+            datatrain = data[ix_shuffle[0:twothirds], :, :]
+            datatest = data[ix_shuffle[twothirds:], :, :]
+            centroidstrain, assignmentstrain, trendVarstrain, standardDevCentroidstrain, cnt_clusterstrain, distancestrain = k_means_clust(datatrain, nmcl, nitr, headers, centroids, cluster_again, distType, cross_valid=False)
+            centroidstest, assignmentstest, trendVarstest, standardDevCentroidstest, cnt_clusterstest, distancestest = k_means_clust(datatest, nmcl, nitr, headers, centroidstrain, cluster_again=False, distType=distType, cross_valid=False)
+            print('test distance is :', distancestest.mean())
+            if distancestest.mean() < best_dist:
+                best_dist = distancestest.mean() 
+                best_hyppar = (nmcl, nitr)
+
+        return k_means_clust(data, best_hyppar[0], best_hyppar[1], headers, centroids, cluster_again, distType, cross_valid=False)
+    
     if centroids == None:
         centroids = random.sample(list(data), num_clust)
+    
     counter = 0
     trendVars = None
-    if cluster_again != False:
+    if cluster_again == False:
         num_iter = 1
 
     for n in range(num_iter):
@@ -121,7 +146,7 @@ def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_ag
     print('average distances is:', distances.mean())
     return centroids, assignments, trendVars, standardDevCentroids, cnt_clusters, distances
 
-def plot_trends(centroids, headers, standardDevCentroids=None, cnt_clusters=[]):
+def plot_trends(centroids, headers, standardDevCentroids=None, cnt_clusters=[], mux=None, stdx=None):
     vital_types = [h.strip('-avg0to3').split(':')[1] for h in headers[0,:]]
     print(vital_types)
     sizex = int(math.ceil(np.sqrt(len(centroids))))
@@ -133,10 +158,15 @@ def plot_trends(centroids, headers, standardDevCentroids=None, cnt_clusters=[]):
             if centroids_ix >= len(centroids):
                 break
             for vitalix in range(0, len(vital_types)): #np.array(subset).nonzero()[0]:
-                axes[i,j].plot(centroids[centroids_ix][:,vitalix], label=vital_types[vitalix])
+                coefmu = 0
+                coefstd = 1
+                if mux != None and stdx != None:
+                    coefmu = mux[:,vitalix]
+                    coefstd = stdx[:,vitalix]
+                axes[i,j].plot(centroids[centroids_ix][:,vitalix] * coefstd + coefmu, label=vital_types[vitalix])
                 axes[i,j].set_title('Trend:'+str(centroids_ix) + (' cnt:' + str(cnt_clusters[centroids_ix] if cnt_clusters != [] else '')), fontsize=6)
                 if standardDevCentroids != None:
-                    axes[i,j].fill_between(range(len(centroids[centroids_ix][:,vitalix])), centroids[centroids_ix][:,vitalix]+standardDevCentroids[centroids_ix][:,vitalix], centroids[centroids_ix][:,vitalix]-standardDevCentroids[centroids_ix][:,vitalix], alpha=0.1)
+                    axes[i,j].fill_between(range(len(centroids[centroids_ix][:,vitalix])), (centroids[centroids_ix][:,vitalix]+standardDevCentroids[centroids_ix][:,vitalix])* coefstd + coefmu, (centroids[centroids_ix][:,vitalix]-standardDevCentroids[centroids_ix][:,vitalix])* coefstd + coefmu, alpha=0.1)
     axes[0,0].legend(fontsize = 6)
 
     
