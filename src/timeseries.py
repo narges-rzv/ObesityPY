@@ -77,11 +77,12 @@ def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_ag
             datatest = data[ix_shuffle[twothirds:], :, :]
             centroidstrain, assignmentstrain, trendVarstrain, standardDevCentroidstrain, cnt_clusterstrain, distancestrain = k_means_clust(datatrain, nmcl, nitr, headers, centroids, cluster_again, distType, cross_valid=False)
             centroidstest, assignmentstest, trendVarstest, standardDevCentroidstest, cnt_clusterstest, distancestest = k_means_clust(datatest, nmcl, nitr, headers, centroidstrain, cluster_again=False, distType=distType, cross_valid=False)
-            print('test distance is :', distancestest.mean())
+            print(' test distance is : {0:4.3f}'.format(distancestest.mean()))
             if distancestest.mean() < best_dist:
                 best_dist = distancestest.mean() 
                 best_hyppar = (nmcl, nitr)
-
+            if best_dist == float('inf'):
+                print('ERROR: Your data probably has a lot of missing values!')
         return k_means_clust(data, best_hyppar[0], best_hyppar[1], headers, centroids, cluster_again, distType, cross_valid=False)
     
     if centroids == None:
@@ -92,6 +93,7 @@ def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_ag
     if cluster_again == False:
         num_iter = 1
 
+    assignments, distances, trendVars, standardDevCentroids = None, None, None, None
     for n in range(num_iter):
         trendVars = np.zeros((data.shape[0], num_clust), dtype=float)
         counter+=1
@@ -111,7 +113,7 @@ def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_ag
                     closest_clust = c_ind
                 if closest_clust == None:
                     closest_clust = 0
-            trendVars[ind, closest_clust] = 1.0
+            trendVars[ind, closest_clust] = min_dist
             distances[ind] = min_dist
             if closest_clust in assignments:
                 assignments[closest_clust].append(ind)

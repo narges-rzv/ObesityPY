@@ -173,6 +173,7 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2la
 	import timeseries
 	xnew, hnew, muxnew, stdxnew = timeseries.load_temporal_data(x2_vitals, headers_vital, y2, y2label, mu_vital, std_vital)
 	centroids, assignments, trendArray, standardDevCentroids, cnt_clusters, distances = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew, distType=distType, cross_valid=cross_valid)
+	trendArray = (trendArray - trendArray.mean(axis=0)) / trendArray.std(axis=0)
 	trend_headers = ['Trend:'+str(i)+' -occ:'+str(cnt_clusters[i]) for i in range(0, len(centroids))]
 	return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew
 
@@ -206,7 +207,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 	if (ix.sum() < 50):
 		print('Not enough subjects. Next.')
 		return (filterSTR, [])
-	if modelType == 'lasso':
+	if modelType == 'lasso' or modelType == 'randomforest':
 		iters = 5
 		model_weights_array = np.zeros((iters, x2.shape[1]), dtype=float)
 		auc_test_list=np.zeros((iters), dtype=float); r2testlist = np.zeros((iters), dtype=float);
@@ -216,9 +217,9 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 			randix = randix[0:int(len(randix)*0.9)]
 			datax = x2[randix,:]; datay=y2[randix]; dataylabel = y2label[randix]
 			(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test) = train_regression(datax, datay, dataylabel, percentile, modelType, feature_headers)
-			model_weights_array[iteration, :] = model.coef_
+			model_weights_array[iteration, :] = model.coef_ if (modelType == 'lasso') else model.feature_importances_
 			auc_test_list[iteration] = auc_test; r2testlist[iteration] = r2test
-
+			
 		model_weights = model_weights_array.mean(axis=0)
 		model_weights_std = model_weights_array.std(axis=0)
 		model_weights_conf_term = (1.96/np.sqrt(iters)) * model_weights_std
@@ -232,9 +233,9 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 		test_auc_mean = auc_test; r2test_mean= r2test;
 		test_auc_mean_ste = 0; r2test_ste=0
 
-	if modelType == 'randomforest':
-		model_weights = model.feature_importances_
-		model_weights_conf_term = model_weights*0
+	# if modelType == 'randomforest':
+	# 	model_weights = model.feature_importances_
+	# 	model_weights_conf_term = model_weights*0
 
 	if modelType == 'mlp':
 		print ('you need to implement gradient to get top weights. ')

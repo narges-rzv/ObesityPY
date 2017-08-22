@@ -1,5 +1,6 @@
 input_csv = ["/Volumes/R/obesity/data/All_patients_of_age_18_or_less_in_eCW_for_at_least_2_years_II.csv","/Volumes/R/obesity/data/All_patients_of_age_18_or_less_in_eCW_for_at_least_2_years_II_sheet2.csv"]
 mom_input_csv = ['/Volumes/R/obesity/data/luth_mat_nbrn_revis.csv']
+lat_lon_csv  = '/Volumes/R/obesity/dataorig/DB_Geocoded_Latlong_results.csv'
 input_csv_delimiter = ","
 
 input_csv_mid_colname = 'patientid'
@@ -19,6 +20,12 @@ input_csv_med_colname = 'meds'
 input_csv_vac_colname = 'vaccines'
 input_csv_eth_colname = 'ethnicity'
 input_csv_race_colname = 'race'
+col_mrn_latlon = 'mrn'
+col_lat = 'Lat'
+col_lon = 'Long'
+col_censustract = 'WA2_2010CensusTract'
+col_censusblock = 'WA2_2010CensusBlock'
+#RecordId,mrn,City,zip,Long,Lat,WA2_2010CensusTract,WA2_2010CensusBlock
 vital_keys = {'Temp', 'Ht', 'Wt', 'BMI', 'BP', 'HR', 'Oxygen', 'Pulse', 'Hearing', 'Vision', 'RR', 'PEF', 'Pre-gravid', 'Repeat', 'Pain', 'HC', 'Fundal', 'Education', 'Insulin', 'HIV', 'BMI Percentile', 'Ht Percentile', 'Wt Percentile', 'Wt Change', 'Oxygen sat', 'Pulse sitting', 'Vision (R) CC', 'Vision (L) CC', ''}
 
 shelve_database_file = '/shelveDB.shlv'
@@ -33,6 +40,7 @@ labslist = '../auxdata/labs.txt'
 medslist = '../auxdata/meds.txt'
 
 CDC_BMI_Ref = '../auxdata/CDC_BMIs.txt'
+CDC_BMI_95 = '../auxdata/CDC_BMI_95.txt'
 
 #maternal info
 input_csv_mothers = ['']

@@ -660,7 +660,7 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 						maternal_data = data_dic_moms[data_dic[k]['mrn']]
 					else:
 						maternal_data = {}
-					outcomelabels[ix] = (outcome_def_pediatric_obesity.percentile(bmi, data_dic[k]['gender'], age) >= 0.95)
+					outcomelabels[ix] = (outcome_def_pediatric_obesity.outcome(bmi, data_dic[k]['gender'], age) >= 0.95)
 					if percentile == True:
 						outcome[ix] = outcome_def_pediatric_obesity.percentile(bmi, data_dic[k]['gender'], age)
 					else:

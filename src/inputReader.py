@@ -19,6 +19,9 @@ def load_csv_input():
 def load_mom_csv_input():
 	return pd.read_csv(config_file.mom_input_csv[0],delimiter=config_file.input_csv_delimiter)
 
+def load_lat_lon_csv_input():
+	return pd.read_csv(config_file.lat_lon_csv, delimiter=config_file.input_csv_delimiter)
+
 def analyse_ages(data):
 	birth = pd.to_datetime(data[config_file.input_csv_birth_colname])
 	order = pd.to_datetime(data[config_file.input_csv_order_colname])
@@ -28,6 +31,42 @@ def analyse_ages(data):
 	#plt.hist(diffmax, bins=100)
 	#plt.show
 	return (diffmx, birth, order)
+
+def parse_lat_lon_data(data):
+	'''col_mrn_latlon = 'mrn'
+	col_lat = 'Lat'
+	col_lon = 'Long'
+	col_censustract = 'WA2_2010CensusTract'
+	col_censusblock = 'WA2_2010CensusBlock'
+	'''
+	db = {}
+	for ix, item in data.iterrows():
+		mrn = item[config_file.col_mrn_latlon]
+		db[mrn]={}
+		try:
+			lat = float(item[config_file.col_lat])
+		except:
+			print('lat is not float!', item[config_file.col_lat])
+		try:
+			lon = float(item[config_file.col_lon])
+		except:
+			print('lon is not float!', item[config_file.col_lon])
+		try:
+			centrac = int(item[config_file.col_censustract])
+		except:
+			print('cencus tract is not int!', item[config_file.col_censustract])
+		try:
+			censblock = int(item[config_file.col_censusblock])
+		except:
+			print('census block is not int!', item[config_file.col_censusblock])
+		
+		db[mrn]['lat'] = lat
+		db[mrn]['lon'] = lon
+		db[mrn]['centrac'] = centrac
+		db[mrn]['censblock'] = censblock
+
+	pickle.dump(file=open('lat_lon_data_20170817.pkl', 'wb'), obj=db, protocol=2)
+
 
 def parse_data(data):
 	db = {}
