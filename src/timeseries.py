@@ -9,12 +9,11 @@ except:
     print('cant plot. install matplotlib if you want to visualize')
 import pickle
 
-#[' BMI', ' BMI Percentile', ' Fundal H', ' HC', ' HC Percentile', ' H', ' Ht Percentile', ' Pre-gravid W', ' W', ' Wt Change', ' Wt Percentile']
-subset = np.array([False, False, False, True, False, True, False, False, True, False, False])
+#[' BMI', ' BMI Percentile', ' Fundal H', ' HC', ' HC Percentile', ' H', ' Ht Percentile', ' Pre-gravid W', ' W', ' Wt Change', ' Wt Percentile', Temp, BP, HR]
 
-def load_temporal_data(xtrain, headers, ytrain, ylabels, mux=None, stdx=None):
-    print(xtrain.shape)
-    print('temporal headers', headers)
+def construct_temporal_data(xtrain, headers, ytrain, ylabels, mux=None, stdx=None, subset=np.array([True, False, False, True, False, True, False, False, True, False, False,False, False, False])):
+    # print(xtrain.shape)
+    # print('temporal headers', headers)
     time_steps = 9
     newh = np.array(headers).reshape(time_steps, len(subset))
     newh = np.array(newh)[:, subset]
@@ -66,7 +65,7 @@ def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_ag
         print('not recomputing new clusters but rather assigning data points to the existing clusters.')
     
     if cross_valid == True:
-        hyperparameterlist = [(4,100), (8,100), (16, 100)]
+        hyperparameterlist = [(16, 100)]#, (24, 500), (4,100), (8,100),
         best_dist = float('inf')
         best_hyppar = (0,0)
         for (nmcl, nitr) in hyperparameterlist:
@@ -113,7 +112,7 @@ def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_ag
                     closest_clust = c_ind
                 if closest_clust == None:
                     closest_clust = 0
-            trendVars[ind, closest_clust] = min_dist
+            trendVars[ind, closest_clust] = 1 - min_dist
             distances[ind] = min_dist
             if closest_clust in assignments:
                 assignments[closest_clust].append(ind)
@@ -145,7 +144,7 @@ def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_ag
 
     cnt_clusters = [len(assignments[k]) for k in assignments]
     print("Done! Number of datapoints per cluster is ", cnt_clusters)
-    print('average distances is:', distances.mean())
+    print('average distances is: {0:4.3f}'.format(distances.mean()))
     return centroids, assignments, trendVars, standardDevCentroids, cnt_clusters, distances
 
 def plot_trends(centroids, headers, standardDevCentroids=None, cnt_clusters=[], mux=None, stdx=None):

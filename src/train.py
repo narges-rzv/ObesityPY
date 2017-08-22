@@ -11,9 +11,9 @@ import outcome_def_pediatric_obesity
 import build_features
 import random
 from sklearn import metrics
+from sklearn.preprocessing import Imputer
 
-
-def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR='', percentile=False):
+def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR='', percentile=False, mrns=[]):
 	print('x shape:', x.shape, 'num features:',len(headers))
 	index_finder_anyvital = np.array([h.startswith('Vital') for h in headers])
 	index_finder_maternal = np.array([h.startswith('Maternal') for h in headers])
@@ -36,9 +36,10 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR='', percentil
 		index_finder_filterstr = np.array([h == filterSTR for h in headers])
 
 	if filterSTR != '' and percentile == False:
-		ix = (y>10) & (y < 40) & (((x[:,index_finder_filterstr]!=0).sum(axis=1) >= len(filterSTR)).ravel()) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1) & ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+		ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr]!=0).sum(axis=1) >= len(filterSTR)).ravel()) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1) #& ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+
 	elif percentile == False:
-		ix = (y>10) & (y < 40) 
+		ix = (y > 10) & (y < 40) 
 		print(ix.sum())
 		
 	if (percentile == True) & (filterSTR != ''):
@@ -46,22 +47,9 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR='', percentil
 	elif percentile == True:
 		ix = (x[:,index_finder_filterstr].ravel() >= False) 
 	print(str(ix.sum()) + ' patients selected..')
-	return ix, x[ix,:], y[ix], ylabel[ix]
+	return ix, x[ix,:], y[ix], ylabel[ix], mrns[ix]
 
-def filter_training_set_forLogit(x, y, ylabel, headers, filterSTR=''):
-	index_finder_filterstr = np.array([h.startswith(filterSTR) for h in headers])
-	index_finder_maternal = np.array([h.startswith('Maternal') for h in headers])
-	if index_finder_filterstr.sum() > 1:
-		# print('filter should be set to *startswith*',filterSTR,'...trying as *equals*')
-		index_finder_filterstr = np.array([h == filterSTR for h in headers])
-
-	if filterSTR != '':
-		ix = (x[:,index_finder_filterstr].ravel() == True)
-	else:
-		ix = (x[:,index_finder_filterstr].ravel() >= False) # no filter
-	return ix, x[ix,:], y[ix], ylabel[ix]
-
-def train_regression(x, y, ylabel, percentile, modelType, feature_headers):
+def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns):
 	import sklearn
 	if modelType == 'lasso':
 		import sklearn.linear_model
@@ -72,6 +60,8 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers):
 		from sklearn.ensemble import RandomForestRegressor
 	if modelType == 'temporalCNN':
 		import cnn
+	if modelType == 'gradientboost':
+		from sklearn.ensemble import GradientBoostingRegressor
 
 	N = x.shape[0]
 	ixlist = np.arange(0,N)	
@@ -85,6 +75,8 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers):
 	ytest =  y[ixlist[int(N*2/3):]]
 	ytestlabel = ylabel[ixlist[int(N*2/3):]]
 	ytrainlabel = ylabel[ixlist[0:int(N*2/3)]]	
+	mrnstrain = mrns[ixlist[0:int(N*2/3)]]
+	mrnstest = mrns[ixlist[int(N*2/3):]]
 
 	best_alpha = -1
 	best_score = -10000
@@ -93,9 +85,11 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers):
 	if modelType == 'mlp':
 		hyperparamlist = [(10,), (50,), (10,10), (50,10), (100,)]
 	if modelType == 'randomforest':
-		hyperparamlist = [(2000,10), (2000,50), (2000,100)]
+		hyperparamlist = [(2000,2), (2000,4), (2000,10)]
 	if modelType == 'temporalCNN':
 		hyperparamlist = [(0.1)]
+	if modelType == 'gradientboost':
+		hyperparamlist = [(1500, 4, 2, 0.01,'lad'), (2500, 4, 2, 0.01,'lad')]
 
 	for alpha_i in hyperparamlist:
 		if modelType == 'lasso':
@@ -104,10 +98,12 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers):
 			clf = MLPRegressor(hidden_layer_sizes=alpha_i, solver="lbfgs", verbose=True)
 		if modelType == 'randomforest':
 			clf = RandomForestRegressor(random_state=0, n_estimators=alpha_i[0], min_samples_split=alpha_i[1])
-		if modelType == 'temporalCNN':
+		if modelType == 'gradientboost':
+			clf = GradientBoostingRegressor(n_estimators=alpha_i[0], max_depth=alpha_i[1], min_samples_split=alpha_i[2], learning_rate=alpha_i[3], loss=alpha_i[4])
+		# if modelType == 'temporalCNN':
 			# xcnndataTrain, xcnndataTest = xtrain.reshape(, xtest # need to be of size |vitals| x |time| x 
-			clf = cnn.TemporalCNN(5, 8, 8, 64, 1)
-			return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, 0, 0)
+			# clf = cnn.TemporalCNN(5, 8, 8, 64, 1)
+			# return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, 0, 0)
 		clf.fit(xtrain, ytrain)	
 		auc_test = metrics.roc_auc_score(ytestlabel, clf.predict(xtest))
 		print('CV AUC for alpha:', alpha_i, 'is:', auc_test)
@@ -120,9 +116,11 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers):
 	if modelType == 'lasso':
 		clf = Lasso(alpha=best_alpha)
 	if modelType == 'mlp':
-		clf = MLPRegressor(hidden_layer_sizes=best_alpha,solver="lbfgs",verbose=True)
+		clf = MLPRegressor(hidden_layer_sizes=best_alpha,solver="lbfgs", verbose=True)
 	if modelType == 'randomforest':
 		clf = RandomForestRegressor(random_state=0, n_estimators=best_alpha[0], min_samples_split=best_alpha[1])
+	if modelType == 'gradientboost':
+		clf = GradientBoostingRegressor(n_estimators=best_alpha[0], max_depth=best_alpha[1], min_samples_split=best_alpha[2], learning_rate=best_alpha[3], loss=best_alpha[4])
 
 	clf.fit(xtrain,ytrain)
 	
@@ -135,7 +133,7 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers):
 	# print('R^2 score test:',clf.score(xtest,ytest))
 	# print('RMSE score test: {0:4.3f}'.format(np.sqrt(((clf.predict(xtest)-ytest)**2).mean())))
 	print('AUC test: {0:4.3f}'.format(metrics.auc(fpr, tpr))+' Explained Variance Score Test: {0:4.3f}'.format(metrics.explained_variance_score(ytest, clf.predict(xtest))))
-	return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test)
+	return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest)
 
 def normalize(x, filter_percentile_more_than_percent=5):
 	bin_ix = ( x.min(axis=0) == 0 ) & ( x.max(axis=0) == 1)
@@ -158,11 +156,10 @@ def variable_subset(x, varsubset, h):
 	print('from ', x.shape[1] ,' variables to ', sum(hix))
 	x = x[:, hix]
 	h = np.array(h)[hix]
-	print(h, x)
+	# print(h, x)
 	return x, h
 
-def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType='eucledian', cross_valid=True, mux=None, stdx=None):
-	#frst make sure only vital values are in x2.
+def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType='eucledian', cross_valid=True, mux=None, stdx=None, doImpute=False):
 	if feature_headers.__class__ == list:
 		feature_headers = np.array(feature_headers)
 	header_vital_ix = np.array([h.startswith('Vital') for h in feature_headers])
@@ -171,9 +168,12 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2la
 	mu_vital = mux[header_vital_ix]
 	std_vital = stdx[header_vital_ix]
 	import timeseries
-	xnew, hnew, muxnew, stdxnew = timeseries.load_temporal_data(x2_vitals, headers_vital, y2, y2label, mu_vital, std_vital)
+	xnew, hnew, muxnew, stdxnew = timeseries.construct_temporal_data(x2_vitals, headers_vital, y2, y2label, mu_vital, std_vital)
 	centroids, assignments, trendArray, standardDevCentroids, cnt_clusters, distances = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew, distType=distType, cross_valid=cross_valid)
-	trendArray = (trendArray - trendArray.mean(axis=0)) / trendArray.std(axis=0)
+	# import pdb
+	# pdb.set_trace()	
+	# trendArray = (trendArray - trendArray.mean(axis=0)) / trendArray.std(axis=0)
+	trendArray[trendArray!=0] = 1
 	trend_headers = ['Trend:'+str(i)+' -occ:'+str(cnt_clusters[i]) for i in range(0, len(centroids))]
 	return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew
 
@@ -185,17 +185,18 @@ def filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude):
 	print(ix_header.sum())
 	return corr_headers[ix_header], corr_matrix[:,ix_header]
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=20, num_iters=100, distType='euclidean', corr_vars_exclude=['Vital', 'Trend']): #filterSTR='Gender:0 male'
-	x1, y1, y1label, feature_headers = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile)
-	ix, x2, y2, y2label = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile)
+def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=16, num_iters=100, distType='euclidean', corr_vars_exclude=['Vital', 'Trend'], returnDataForErrorAnalysis=False, doImpute=True): #filterSTR='Gender:0 male'
+	x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile)
+	ix, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns)
 	x2, mux, stdx = normalize(x2)
-	x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType, True, mux, stdx)
+	x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType, True, mux, stdx, doImpute)
 	corr_headers = feature_headers
 	corr_matrix = np.corrcoef(x2.transpose())
 	corr_headers_filtered, corr_matrix_filtered = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
 
 	if len(variablesubset) != 0:
 		x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
+
 	print('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
 	print ('normalizing output.'); y2 = (y2-y2.mean())/y2.std()
 
@@ -207,16 +208,17 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 	if (ix.sum() < 50):
 		print('Not enough subjects. Next.')
 		return (filterSTR, [])
-	if modelType == 'lasso' or modelType == 'randomforest':
-		iters = 5
+
+	if modelType == 'lasso' or modelType == 'randomforest' or modelType == 'gradientboost':
+		iters = 2
 		model_weights_array = np.zeros((iters, x2.shape[1]), dtype=float)
 		auc_test_list=np.zeros((iters), dtype=float); r2testlist = np.zeros((iters), dtype=float);
 		for iteration in range(0,iters):
 			randix = list(range(0, x2.shape[0]))
 			random.shuffle(randix)
 			randix = randix[0:int(len(randix)*0.9)]
-			datax = x2[randix,:]; datay=y2[randix]; dataylabel = y2label[randix]
-			(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test) = train_regression(datax, datay, dataylabel, percentile, modelType, feature_headers)
+			datax = x2[randix,:]; datay=y2[randix]; dataylabel = y2label[randix]; mrnx = mrns[randix]
+			(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest) = train_regression(datax, datay, dataylabel, percentile, modelType, feature_headers, mrnx)
 			model_weights_array[iteration, :] = model.coef_ if (modelType == 'lasso') else model.feature_importances_
 			auc_test_list[iteration] = auc_test; r2testlist[iteration] = r2test
 			
@@ -227,15 +229,16 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 		test_auc_mean_ste = (1.96/np.sqrt(iters)) * auc_test_list.std()
 		r2test_mean = r2testlist.mean()
 		r2test_ste = (1.96/np.sqrt(iters)) * r2testlist.std()
+
+		if returnDataForErrorAnalysis == True:
+			print('lets analyse this')
+			return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest)
+
 	else:
-		(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test) = train_regression(x2, y2, y2label, percentile, modelType, feature_headers)	
+		(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest) = train_regression(x2, y2, y2label, percentile, modelType, feature_headers, mrnx)	
 		model_weights_conf_term = np.zeros((x2.shape[1]), dtype=float)
 		test_auc_mean = auc_test; r2test_mean= r2test;
 		test_auc_mean_ste = 0; r2test_ste=0
-
-	# if modelType == 'randomforest':
-	# 	model_weights = model.feature_importances_
-	# 	model_weights_conf_term = model_weights*0
 
 	if modelType == 'mlp':
 		print ('you need to implement gradient to get top weights. ')
@@ -292,7 +295,37 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 	for k in feature_categories:
 		print (k, ":", feature_categories[k])
 	return (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew) 
+
+def analyse_errors(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest):
+	pred = model.predict(xtrain)
+	print('AUC train is:', metrics.roc_auc_score(y_score=pred, y_true=ytrainlabel))
+	print('top errors are')
+	# ix_sorted = np.argsort(-1*(ytrain))
+	# plt.plot(pred[ix_sorted])
+	# plt.plot(ytrain[ix_sorted])
+	# plt.plot(ytrainlabel[ix_sorted])
 	
+	predtest = model.predict(xtest)
+	ix_sorted_test = np.argsort(-1*(ytest-predtest))
+	plt.plot(predtest[ix_sorted_test])
+	plt.plot(ytest[ix_sorted_test])
+	plt.plot(ytestlabel[ix_sorted_test])
+
+	try:
+		weights = np.array(model.coef_).ravel()
+	except:
+		weights = np.array(model.feature_importances_).ravel()
+
+	weights_sorted_ix = np.argsort(-1*abs(weights))
+	for m in ix_sorted_test[0:4]:
+		print('member', m, 'mrn:', mrnstest[m], ', predicted as', predtest[m], ' but should have been:', ytest[m], ' with label:', ytestlabel[m])
+		for i in weights_sorted_ix:
+			if xtest[m,:][i] == 0 :
+				continue
+			print('feature', feature_headers[i], ' with weight/importance', weights[i], 'is:', xtest[m,:][i])
+		print('----')
+		
+
 def train_chain(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=''):
 	notDone = True
 	while notDone == True:

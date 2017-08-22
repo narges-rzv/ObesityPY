@@ -8,6 +8,8 @@ from datetime import timedelta
 from dateutil import parser
 import numpy as np
 import outcome_def_pediatric_obesity
+from scipy import stats
+
 
 def build_features_icd(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
 	res = np.zeros(len(feature_headers), dtype=bool)
@@ -69,12 +71,9 @@ def build_features_vitalLatest(patient_data, maternal_data, reference_date_start
 			if edate >= reference_date_end or edate <= reference_date_start:
 				continue
 			try:
-				# age_at_vital = (edate - bdate).days / 365.0
 				res[feature_index[code.strip()]] = vitalval
-				# print(code, age_at_vital, vitalval)
 			except:
 				pass
-				# print('error with', (code, edate, vitalval) )
 	return res
 
 def build_features_vitalAverage_0_3(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
@@ -605,9 +604,6 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 	feature_index_nb_icd, feature_headers_nb_icd = build_feature_NB_ICD_index()
 	feature_index_mat_insurance1, feature_headers_mat_insurance1 = build_feature_matinsurance1_index()
 	feature_index_mat_insurance2, feature_headers_mat_insurance2 = build_feature_matinsurance2_index()
-
-	# feature_index_mat_deldiag, feature_headers_mat_deldiag = build_feature_deldiag_index()
-
 	
 	funcs = [
 		(build_features_icd, [ feature_index_icd, feature_headers_icd ]), #
@@ -643,7 +639,8 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 	]
 
 	features = np.zeros((len(data_dic.keys()), sum([len(f[1][1]) for f in funcs ]) ), dtype=float)
-	
+	mrns = []
+
 	headers = []
 	for (pos, f ) in enumerate(funcs):
 		headers += f[1][1]
@@ -651,36 +648,39 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 	for (ix, k) in enumerate(data_dic):
 		flag=False
 		bdate = data_dic[k]['bdate']
+		mrns.append(data_dic[k]['mrn'])
 		if ('vitals' in data_dic[k]) and ('BMI' in data_dic[k]['vitals']):
+			BMI_list = []
+			BMI_outcome_list = []
 			for (edate, bmi) in data_dic[k]['vitals']['BMI']:
 				age = (edate - bdate).days / 365.0
-				if (age >= agex_low) and (age< agex_high) and (flag == False):
-					# print ('patient ', k, 'BMI at age:', age, 'is:', bmi)
-					if data_dic[k]['mrn'] in data_dic_moms:
-						maternal_data = data_dic_moms[data_dic[k]['mrn']]
-					else:
-						maternal_data = {}
-					outcomelabels[ix] = (outcome_def_pediatric_obesity.outcome(bmi, data_dic[k]['gender'], age) >= 0.95)
-					if percentile == True:
-						outcome[ix] = outcome_def_pediatric_obesity.percentile(bmi, data_dic[k]['gender'], age)
-					else:
-						outcome[ix] = bmi
-					ix_pos_start = 0
-					ix_pos_end = len(funcs[0][1][1])
-					for (pos, f) in enumerate(funcs):
-						func = f[0]
-						features[ix, ix_pos_start:ix_pos_end] = func(
-							data_dic[k], 
-							maternal_data,
-							bdate + timedelta(days=months_from*30), #edate - timedelta(days=months_from*30),
-							bdate + timedelta(days=months_to*30), #edate + timedelta(days=months_to*30), 
-							*f[1])
-						ix_pos_start += len(f[1][1])
-						try:
-							ix_pos_end += len(funcs[pos+1][1][1])
-						except IndexError:
-							ix_pos_end = features.shape[1]
-					flag = True
-
+				if (age >= agex_low) and (age< agex_high):
+					BMI_list.append(bmi)
+					BMI_outcome_list.append((outcome_def_pediatric_obesity.outcome(bmi, data_dic[k]['gender'], age) >= 0.95))
+					if (flag == False): #compute features once
+						if data_dic[k]['mrn'] in data_dic_moms:
+							maternal_data = data_dic_moms[data_dic[k]['mrn']]
+						else:
+							maternal_data = {}
+						ix_pos_start = 0
+						ix_pos_end = len(funcs[0][1][1])
+						for (pos, f) in enumerate(funcs):
+							func = f[0]
+							features[ix, ix_pos_start:ix_pos_end] = func(
+								data_dic[k], 
+								maternal_data,
+								bdate + timedelta(days=months_from*30), 
+								bdate + timedelta(days=months_to*30), 
+								*f[1])
+							ix_pos_start += len(f[1][1])
+							try:
+								ix_pos_end += len(funcs[pos+1][1][1])
+							except IndexError:
+								ix_pos_end = features.shape[1]
+						flag = True
+			if (flag == True) and len(BMI_list)>1:
+				# print(BMI_list)
+				outcomelabels[ix] = stats.mode(np.array(BMI_outcome_list)).mode[0]
+				outcome[ix] = np.array(BMI_list).mean()
 				
-	return features, outcome, outcomelabels, headers
+	return features, outcome, outcomelabels, headers, np.array(mrns)
