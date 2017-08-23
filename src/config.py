@@ -41,6 +41,8 @@ medslist = '../auxdata/meds.txt'
 
 CDC_BMI_Ref = '../auxdata/CDC_BMIs.txt'
 CDC_BMI_95 = '../auxdata/CDC_BMI_95.txt'
+wght4leng_girl = '../auxdata/wfh_girls_p_exp.txt'
+wght4leng_boy = '../auxdata/wfh_boys_p_exp.txt'
 
 #maternal info
 input_csv_mothers = ['']
