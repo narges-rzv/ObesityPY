@@ -105,8 +105,8 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
 			# clf = cnn.TemporalCNN(5, 8, 8, 64, 1)
 			# return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, 0, 0)
 		clf.fit(xtrain, ytrain)	
-		auc_test = metrics.roc_auc_score(ytestlabel, clf.predict(xtest))
-		print('CV AUC for alpha:', alpha_i, 'is:', auc_test)
+		auc_test = metrics.explained_variance_score(ytest, clf.predict(xtest)) #roc_auc_score(ytestlabel, clf.predict(xtest))
+		print('CV R^2 for alpha:', alpha_i, 'is:', auc_test)
 		if auc_test > best_score:
 			best_score = auc_test #np.sqrt(((clf.predict(xtest)-ytest)**2).mean())
 			best_alpha = alpha_i
@@ -185,12 +185,16 @@ def filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude):
 	print(ix_header.sum())
 	return corr_headers[ix_header], corr_matrix[:,ix_header]
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=16, num_iters=100, distType='euclidean', corr_vars_exclude=['Vital', 'Trend'], returnDataForErrorAnalysis=False, doImpute=True): #filterSTR='Gender:0 male'
-	x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile)
+def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=16, num_iters=100, distType='euclidean', corr_vars_exclude=['Vital'], returnDataForErrorAnalysis=False, doImpute=True, mrnForFilter=[], addTime=False): #filterSTR='Gender:0 male'
+	x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
 	ix, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns)
 	x2, mux, stdx = normalize(x2)
-	x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType, True, mux, stdx, doImpute)
-	corr_headers = feature_headers
+	if addTime:
+		x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType, True, mux, stdx, doImpute)
+	else:
+		centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = ['NaN']*7
+
+	corr_headers = np.array(feature_headers)
 	corr_matrix = np.corrcoef(x2.transpose())
 	corr_headers_filtered, corr_matrix_filtered = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
 
@@ -299,17 +303,21 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 def analyse_errors(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest):
 	pred = model.predict(xtrain)
 	print('AUC train is:', metrics.roc_auc_score(y_score=pred, y_true=ytrainlabel))
-	print('top errors are')
+	print('high risks are')
 	# ix_sorted = np.argsort(-1*(ytrain))
 	# plt.plot(pred[ix_sorted])
 	# plt.plot(ytrain[ix_sorted])
 	# plt.plot(ytrainlabel[ix_sorted])
 	
 	predtest = model.predict(xtest)
-	ix_sorted_test = np.argsort(-1*(ytest-predtest))
-	plt.plot(predtest[ix_sorted_test])
-	plt.plot(ytest[ix_sorted_test])
-	plt.plot(ytestlabel[ix_sorted_test])
+	predtrain = model.predict(xtrain)
+	ix_sorted_test = np.argsort(-1*(predtest))[0:int(len(predtest)/3)]
+	ix_sorted_train = np.argsort(-1*(predtrain))[0:int(len(predtrain)/3)]
+
+	return list(mrnstest[ix_sorted_test])+list(mrnstrain[ix_sorted_train])
+	# plt.plot(predtest[ix_sorted_test])
+	# plt.plot(ytest[ix_sorted_test])
+	# plt.plot(ytestlabel[ix_sorted_test])
 
 	try:
 		weights = np.array(model.coef_).ravel()

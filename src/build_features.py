@@ -581,7 +581,7 @@ def build_feature_ICD_index():
 	# feature_headers = ['Diagnosis:' + i for i in  (icd9 + icd10)]
 	return feature_index, feature_headers
 
-def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_from, months_to, percentile):
+def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=[]):
 	outcome = np.zeros(len(data_dic.keys()), dtype=float)
 	outcomelabels = np.zeros(len(data_dic.keys()), dtype=float)
 	feature_index_gen, feature_headers_gen = build_feature_gender_index()
@@ -639,16 +639,18 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
 	]
 
 	features = np.zeros((len(data_dic.keys()), sum([len(f[1][1]) for f in funcs ]) ), dtype=float)
-	mrns = []
+	mrns = [0]*len(data_dic.keys())
 
 	headers = []
 	for (pos, f ) in enumerate(funcs):
 		headers += f[1][1]
 
 	for (ix, k) in enumerate(data_dic):
+		if (len(mrnsForFilter) > 0) & (str(data_dic[k]['mrn']) not in mrnsForFilter):
+			continue
 		flag=False
 		bdate = data_dic[k]['bdate']
-		mrns.append(data_dic[k]['mrn'])
+		mrns[ix] = data_dic[k]['mrn']
 		if ('vitals' in data_dic[k]) and ('BMI' in data_dic[k]['vitals']):
 			BMI_list = []
 			BMI_outcome_list = []
