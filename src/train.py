@@ -201,7 +201,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
     if len(variablesubset) != 0:
         x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
 
-    print('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
+    print ('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
     print ('normalizing output.'); y2 = (y2-y2.mean())/y2.std()
 
     print ('Predicting BMI at age:'+str(agex_low)+ ' to '+str(agex_high)+ 'years, from data in ages:'+ str(months_from)+'-'+str(months_to) + ' months')
@@ -298,7 +298,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 
     for k in feature_categories:
         print (k, ":", feature_categories[k])
-    return (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew) 
+    return (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns) 
 
 def analyse_errors(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest):
     pred = model.predict(xtrain)
@@ -348,3 +348,17 @@ def train_chain(data_dic, data_dic_mom, agex_low, agex_high, months_from, months
                 return
             train_chain(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType, percentile, flist_copy)
         return
+
+if __name__=='__main__':
+    d1 = pickle.load(open('patientdata_20170823.pkl', 'rb'))
+    d1mom = pickle.load(open('patient_mother_data_20170724.pkl', 'rb'))
+    mrnsboys = pickle.load(open('mrnsboys.pkl','rb'))
+    mrnsgirls = pickle.load(open('mrnsgirl.pkl','rb'))
+
+    (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrnsdummy) = train_regression_model_for_bmi(d1, d1mom, 4.5, 5.5, 0, 24, filterSTR=['Gender:0'], variablesubset=[], num_clusters=16, num_iters=100, distType='euclidean', modelType='lasso', returnDataForErrorAnalysis=False, addTime=True, mrnForFilter=mrnsboys)
+
+    import time
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    print('saving (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrnsdummy) at out_'+timestr+'.pkl')
+
+    pickle.dump(file=open('out_'+timestr+'.pkl', 'wb'), obj=(filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrnsdummy), protocol=-1)

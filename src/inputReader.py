@@ -390,21 +390,28 @@ def append_weight_for_length(data):
     for i in ref_boy:
         ref_boy_db[i[0]] = i[4:]
 
+    f = open("tmpout.csv", 'w')
+
     for k in data.keys():
         if ('Wt' in data[k]['vitals']) & ('Ht' in data[k]['vitals']):
             listwt = data[k]['vitals']['Wt']
             listht = data[k]['vitals']['Ht']
             gender = data[k]['gender']
+            bdate = data[k]['bdate']
             weight_for_length = []
             for (date1, ht1) in listht:
                 for (date2, wt1) in listwt:
                     if date1 == date2:
-                        p = percentile(ht1, wt1, ref_girl_db if gender == True else ref_boy_db)
-                        if p != -1:
-                            weight_for_length.append([date1, p])
+                        if (date1 - bdate).days <= 365 * 3 :
+                            f.write(str(ht1) + ' ' + str(wt1) + (' f' if gender else ' m') + '\n')
+                            p = percentile(ht1, wt1, ref_girl_db if gender == True else ref_boy_db)
+                            if p != -1:
+                                weight_for_length.append([date1, p])
+                            f.flush()
         data[k]['vitals']['Wt for Ht Percentile']=weight_for_length
         # import pdb
         # pdb.set_trace()
+    f.close()
     return data
 
 def levenshtein(s1, s2):

@@ -76,6 +76,33 @@ def build_features_vitalLatest(patient_data, maternal_data, reference_date_start
                 pass
     return res
 
+def build_features_vitalAverage_0_1(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 1)
+
+def build_features_vitalAverage_1_3(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 1, 3)
+
+def build_features_vitalAverage_3_5(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 3, 5)
+
+def build_features_vitalAverage_5_7(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 5, 7)
+
+def build_features_vitalAverage_7_10(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 7, 10)
+
+def build_features_vitalAverage_10_13(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 10, 13)
+
+def build_features_vitalAverage_13_16(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 13, 16)
+
+def build_features_vitalAverage_16_19(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 16, 19)
+
+def build_features_vitalAverage_19_24(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 19, 24)
+
 def build_features_vitalAverage_0_3(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 3)
 
@@ -97,8 +124,8 @@ def build_features_vitalAverage_15_18(patient_data, maternal_data, reference_dat
 def build_features_vitalAverage_18_21(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 18, 21)
 
-def build_features_vitalAverage_21_24(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 21, 24)
+def build_features_vitalAverage_18_24(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 18, 24)
 
 def build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, frommonth, tomonth):
     res = np.zeros(len(feature_headers), dtype=float)
@@ -613,14 +640,23 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
         (build_features_ethn, [ feature_index_ethn, feature_headers_ethn]),
         (build_features_race, [ feature_index_race, feature_headers_race]),
         (build_features_vitalLatest, [ feature_index_vitalLatest, [h+'-latest' for h in feature_headers_vitalsLatest]]),
-        (build_features_vitalAverage_0_3, [ feature_index_vitalLatest, [h+'-avg0to3' for h in feature_headers_vitalsLatest]]),
-        (build_features_vitalAverage_3_6, [ feature_index_vitalLatest, [h+'-avg3to6' for h in feature_headers_vitalsLatest]]),
-        (build_features_vitalAverage_6_9, [ feature_index_vitalLatest, [h+'-avg6to9' for h in feature_headers_vitalsLatest]]),
-        (build_features_vitalAverage_9_12, [ feature_index_vitalLatest, [h+'-avg9to12' for h in feature_headers_vitalsLatest]]),
-        (build_features_vitalAverage_12_15, [ feature_index_vitalLatest, [h+'-avg12to15' for h in feature_headers_vitalsLatest]]),
-        (build_features_vitalAverage_15_18, [ feature_index_vitalLatest, [h+'-avg15to18' for h in feature_headers_vitalsLatest]]),
-        (build_features_vitalAverage_18_21, [ feature_index_vitalLatest, [h+'-avg18to21' for h in feature_headers_vitalsLatest]]),
-        (build_features_vitalAverage_21_24, [ feature_index_vitalLatest, [h+'-avg21to24' for h in feature_headers_vitalsLatest]]),
+        # (build_features_vitalAverage_0_3, [ feature_index_vitalLatest, [h+'-avg0to3' for h in feature_headers_vitalsLatest]]),
+        # (build_features_vitalAverage_3_6, [ feature_index_vitalLatest, [h+'-avg3to6' for h in feature_headers_vitalsLatest]]),
+        # (build_features_vitalAverage_6_9, [ feature_index_vitalLatest, [h+'-avg6to9' for h in feature_headers_vitalsLatest]]),
+        # (build_features_vitalAverage_9_12, [ feature_index_vitalLatest, [h+'-avg9to12' for h in feature_headers_vitalsLatest]]),
+        # (build_features_vitalAverage_12_15, [ feature_index_vitalLatest, [h+'-avg12to15' for h in feature_headers_vitalsLatest]]),
+        # (build_features_vitalAverage_15_18, [ feature_index_vitalLatest, [h+'-avg15to18' for h in feature_headers_vitalsLatest]]),
+        # # (build_features_vitalAverage_18_21, [ feature_index_vitalLatest, [h+'-avg18to21' for h in feature_headers_vitalsLatest]]),
+        # (build_features_vitalAverage_18_24, [ feature_index_vitalLatest, [h+'-avg18to24' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalAverage_0_1, [ feature_index_vitalLatest, [h+'-avg0to1' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalAverage_1_3, [ feature_index_vitalLatest, [h+'-avg1to3' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalAverage_3_5, [ feature_index_vitalLatest, [h+'-avg3to5' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalAverage_5_7, [ feature_index_vitalLatest, [h+'-avg5to7' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalAverage_7_10, [ feature_index_vitalLatest, [h+'-avg7to10' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalAverage_10_13, [ feature_index_vitalLatest, [h+'-avg10to13' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalAverage_13_16, [ feature_index_vitalLatest, [h+'-avg13to16' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalAverage_16_19, [ feature_index_vitalLatest, [h+'-avg16to19' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalAverage_19_24, [ feature_index_vitalLatest, [h+'-avg19to24' for h in feature_headers_vitalsLatest]]),
         # environment
         (build_features_zipcd, [ feature_index_zipcd, feature_headers_zipcd]),
         # maternal features
