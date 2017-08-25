@@ -11,7 +11,7 @@ import pickle
 
 #[' BMI', ' BMI Percentile', ' Fundal H', ' HC', ' HC Percentile', ' H', ' Ht Percentile', ' Pre-gravid W', ' W', ' Wt Change', ' Wt Percentile', Temp, BP, HR, Wt for Length Percentile]
 
-def construct_temporal_data(xtrain, headers, ytrain, ylabels, mux=None, stdx=None, subset=np.array([False, False, False, False, False, True, False, False, True, False, False, False, False, False, False])):
+def construct_temporal_data(xtrain, headers, ytrain, ylabels, mux=None, stdx=None, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])):
     # print(xtrain.shape)
     # print('temporal headers', headers)
     time_steps = 10

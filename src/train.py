@@ -39,7 +39,7 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR='', percentil
         ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr]!=0).sum(axis=1) >= len(filterSTR)).ravel()) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1) #& ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
 
     elif percentile == False:
-        ix = (y > 10) & (y < 40) 
+        ix = (y > 10) & (y < 40) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1)
         print(ix.sum())
         
     if (percentile == True) & (filterSTR != ''):
@@ -214,7 +214,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         return (filterSTR, [])
 
     if modelType == 'lasso' or modelType == 'randomforest' or modelType == 'gradientboost':
-        iters = 2
+        iters = 20
         model_weights_array = np.zeros((iters, x2.shape[1]), dtype=float)
         auc_test_list=np.zeros((iters), dtype=float); r2testlist = np.zeros((iters), dtype=float);
         for iteration in range(0,iters):
@@ -255,9 +255,41 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
     factors = np.array(feature_headers)[sorted_ix]
     x2_reordered = x2[:,sorted_ix]
     xtest_reordered = xtest[:, sorted_ix]
+
+    ytestpred = model.predict(xtest)
+    fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, ytestpred)
+    operating_Thresholds = []
+    operating_levels = [0.01, 0.1, 0.2, 0.3, 0.4, 0.5]
+    ix_level = 0
+    for ix, thr in enumerate(thresholds):
+        if fpr[ix] > operating_levels[ix_level]:
+            operating_Thresholds.append(thr)
+            ix_level += 1
+            if ix_level == len(operating_levels):
+                break
+
+    # import pdb
+    # pdb.set_trace()
+
+    report_metrics = ''
+    for t in operating_Thresholds:
+        tp = ((ytestlabel > 0) & (ytestpred.ravel() > t)).sum()*1.0
+        tn = ((ytestlabel == 0) & (ytestpred.ravel() <= t)).sum()*1.0
+        fp = ((ytestlabel > 0) & (ytestpred.ravel() <= t)).sum()*1.0
+        fn = ((ytestlabel == 0) & (ytestpred.ravel() > t)).sum()*1.0
+
+        sens = tp / (tp + fn)
+        spec = tn / (tn + fp) 
+        ppv = tp / (tp + fp)
+        acc = (tp + tn) / (tp + tn + fp + fn)
+        f1 = 2*tp / (2*tp + fp + fn)
+
+        report_metrics += '@threshold:{0:4.2f}, sens:{1:4.2f}, spec:{2:4.2f}, ppv:{3:4.2f}, acc:{4:4.2f}, f1:{5:4.2f} \n'.format(t, sens, spec, ppv, acc, f1)
+    
     print('total variables', x2.sum(axis=0).shape, ' and total subjects:', x2.shape[0])
     print('->AUC test: {0:4.3f} [{1:4.3f} {2:4.3f}]'.format(test_auc_mean, test_auc_mean - test_auc_mean_ste, test_auc_mean + test_auc_mean_ste))
     print('->Explained Variance (R2) test: {0:4.3f} [{1:4.3f} {2:4.3f}]'.format(r2test_mean, r2test_mean - r2test_ste,  r2test_mean + r2test_ste))
+    print(report_metrics)
 
     occurances = (x2 != 0).sum(axis=0)[sorted_ix]
     zip_weights = {}
@@ -275,6 +307,12 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         tn = ((y2label == 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
         fp = ((y2label > 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
         fn = ((y2label == 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
+        # sens = tp / (tp + fn)
+        # spec = tn / (tn + fp) 
+        # ppv = tp / (tp + fp)
+        # acc = (tp + tn) / (tp + tn + fp + fn)
+        # f1 = 2*tp / (2*tp + fp + fn)
+
         if fp*fn*tp*tn == 0:
             oratio = np.nan
             low_OR = np.nan
@@ -293,7 +331,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         if (low_OR > 1 or high_OR < 1): #or (weights[i]+terms_sorted[i]) < 0 or (weights[i]-terms_sorted[i]) > 0
             sig_headers.append(factors[i])
             star = '*'
-        print("{8} {3} | coef {0:4.3f} [{1:4.3f} {2:4.3f}] | OR_adj {9:4.3f} [{10:4.3f} {11:4.3f}] | occ: {4} | OR_unadj: {5:4.3f} [{6:4.3f} {7:4.3f}] | indiv AUC: {12:4.3f}".format(weights[i], weights[i]-terms_sorted[i], weights[i]+terms_sorted[i], factors[i], occurances[i], oratio, low_OR, high_OR, star, np.exp(weights[i]), np.exp(weights[i]-terms_sorted[i]), np.exp(weights[i]+terms_sorted[i]), feature_auc_indiv))
+        print("{8} {3} | coef {0:4.3f} [{1:4.3f} {2:4.3f}] | OR_adj {9:4.3f} [{10:4.3f} {11:4.3f}] | occ: {4} | OR_unadj: {5:4.3f} [{6:4.3f} {7:4.3f}] | indivs AUC:{12:4.3f}".format(weights[i], weights[i]-terms_sorted[i], weights[i]+terms_sorted[i], factors[i], occurances[i], oratio, low_OR, high_OR, star, np.exp(weights[i]), np.exp(weights[i]-terms_sorted[i]), np.exp(weights[i]+terms_sorted[i]), feature_auc_indiv))
         print(corr_string)
 
     for k in feature_categories:
