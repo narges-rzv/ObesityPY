@@ -259,19 +259,18 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
     ytestpred = model.predict(xtest)
     fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, ytestpred)
     operating_Thresholds = []
-    operating_levels = [0.01, 0.1, 0.2, 0.3, 0.4, 0.5]
+    operating_levels = [0, 0.0001, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
     ix_level = 0
+
     for ix, thr in enumerate(thresholds):
-        if fpr[ix] > operating_levels[ix_level]:
+        if fpr[ix] >= operating_levels[ix_level]:
             operating_Thresholds.append(thr)
             ix_level += 1
             if ix_level == len(operating_levels):
                 break
 
-    # import pdb
-    # pdb.set_trace()
-
-    report_metrics = ''
+    operating_Thresholds = thresholds
+    report_metrics = 'Test set metrics:\n'
     for t in operating_Thresholds:
         tp = ((ytestlabel > 0) & (ytestpred.ravel() > t)).sum()*1.0
         tn = ((ytestlabel == 0) & (ytestpred.ravel() <= t)).sum()*1.0
@@ -284,7 +283,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         acc = (tp + tn) / (tp + tn + fp + fn)
         f1 = 2*tp / (2*tp + fp + fn)
 
-        report_metrics += '@threshold:{0:4.2f}, sens:{1:4.2f}, spec:{2:4.2f}, ppv:{3:4.2f}, acc:{4:4.2f}, f1:{5:4.2f} \n'.format(t, sens, spec, ppv, acc, f1)
+        report_metrics += '@threshold:{0:4.3f}, sens:{1:4.3f}, spec:{2:4.3f}, ppv:{3:4.3f}, acc:{4:4.3f}, f1:{5:4.3f} \n'.format(t, sens, spec, ppv, acc, f1)
     
     print('total variables', x2.sum(axis=0).shape, ' and total subjects:', x2.shape[0])
     print('->AUC test: {0:4.3f} [{1:4.3f} {2:4.3f}]'.format(test_auc_mean, test_auc_mean - test_auc_mean_ste, test_auc_mean + test_auc_mean_ste))

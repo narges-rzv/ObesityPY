@@ -716,7 +716,7 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
                             except IndexError:
                                 ix_pos_end = features.shape[1]
                         flag = True
-            if (flag == True) and len(BMI_list)>1:
+            if (flag == True) and len(BMI_list)>=1:
                 # print(BMI_list)
                 outcomelabels[ix] = stats.mode(np.array(BMI_outcome_list)).mode[0]
                 outcome[ix] = np.array(BMI_list).mean()
