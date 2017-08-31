@@ -185,7 +185,7 @@ def filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude):
     print(ix_header.sum())
     return corr_headers[ix_header], corr_matrix[:,ix_header]
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'], num_clusters=16, num_iters=100, distType='euclidean', corr_vars_exclude=['Vital'], returnDataForErrorAnalysis=False, doImpute=True, mrnForFilter=[], addTime=False): #filterSTR='Gender:0 male'
+def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'],variableexclude=['Trend'], num_clusters=16, num_iters=100, distType='euclidean', corr_vars_exclude=['Vital'], returnDataForErrorAnalysis=False, doImpute=True, mrnForFilter=[], addTime=False): #filterSTR='Gender:0 male'
     x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
     ix, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns)
     x2, mux, stdx = normalize(x2)
@@ -199,7 +199,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
     corr_headers_filtered, corr_matrix_filtered = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
 
     if len(variablesubset) != 0:
-        x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
+        x2, feature_headers = variable_subset(x2, variablesubset, variableexclude, feature_headers)
 
     print ('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
     print ('normalizing output.'); y2 = (y2-y2.mean())/y2.std()
@@ -392,7 +392,7 @@ if __name__=='__main__':
     mrnsboys = pickle.load(open('mrnsboys.pkl','rb'))
     mrnsgirls = pickle.load(open('mrnsgirl.pkl','rb'))
 
-    (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrnsdummy) = train_regression_model_for_bmi(d1, d1mom, 4.5, 5.5, 0, 24, filterSTR=['Gender:0'], variablesubset=[], num_clusters=16, num_iters=100, distType='euclidean', modelType='lasso', returnDataForErrorAnalysis=False, addTime=True, mrnForFilter=mrnsboys)
+    (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrnsdummy) = train_regression_model_for_bmi(d1, d1mom, 4.5, 5.5, 0, 24, filterSTR=['Gender:1'], variablesubset=[], num_clusters=16, num_iters=100, distType='euclidean', modelType='lasso', returnDataForErrorAnalysis=False, addTime=True, mrnForFilter=mrnsgirl)
 
     import time
     timestr = time.strftime("%Y%m%d-%H%M%S")

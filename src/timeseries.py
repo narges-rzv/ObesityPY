@@ -19,7 +19,7 @@ def construct_temporal_data(xtrain, headers, ytrain, ylabels, mux=None, stdx=Non
     newh = np.array(newh)[:, subset]
     newx = xtrain.reshape(xtrain.shape[0], time_steps, len(subset))
     newx = newx[:, :, subset]
-    if mux != None and stdx != None:
+    if (mux != None) & (stdx != None):
         muxreshape = mux.reshape(time_steps, len(subset))[:,subset]
         stdxreshape = stdx.reshape(time_steps, len(subset))[:,subset]
 
