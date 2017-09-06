@@ -10,8 +10,7 @@ except:
 import pickle
 
 #[' BMI', ' BMI Percentile', ' Fundal H', ' HC', ' HC Percentile', ' H', ' Ht Percentile', ' Pre-gravid W', ' W', ' Wt Change', ' Wt Percentile', Temp, BP, HR, Wt for Length Percentile]
-
-def construct_temporal_data(xtrain, headers, ytrain, ylabels, mux=None, stdx=None, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])):
+def construct_temporal_data(xtrain, headers, ytrain, ylabels, mux=[], stdx=[], subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])):
     # print(xtrain.shape)
     # print('temporal headers', headers)
     time_steps = 10
@@ -19,7 +18,7 @@ def construct_temporal_data(xtrain, headers, ytrain, ylabels, mux=None, stdx=Non
     newh = np.array(newh)[:, subset]
     newx = xtrain.reshape(xtrain.shape[0], time_steps, len(subset))
     newx = newx[:, :, subset]
-    if (mux != None) & (stdx != None):
+    if (len(mux) > 0) and (len(stdx) > 0):
         muxreshape = mux.reshape(time_steps, len(subset))[:,subset]
         stdxreshape = stdx.reshape(time_steps, len(subset))[:,subset]
 
@@ -181,7 +180,7 @@ def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_ag
     print('average distances is: {0:4.3f}'.format(distances.mean()))
     return centroids, assignments, trendVars, standardDevCentroids, cnt_clusters, distances
 
-def plot_trends(centroids, headers, standardDevCentroids=None, cnt_clusters=[], mux=None, stdx=None):
+def plot_trends(centroids, headers, standardDevCentroids=None, cnt_clusters=[], mux=[], stdx=[]):
     vital_types = [h.strip('-avg0to1').split(':')[1] for h in headers[0,:]]
     print(vital_types)
     sizex = int(math.ceil(np.sqrt(len(centroids))))
@@ -195,7 +194,7 @@ def plot_trends(centroids, headers, standardDevCentroids=None, cnt_clusters=[], 
             for vitalix in range(0, len(vital_types)): #np.array(subset).nonzero()[0]:
                 coefmu = 0
                 coefstd = 1
-                if mux != None and stdx != None:
+                if len(mux) != 0 and len(stdx) != 0:
                     coefmu = mux[0:4,vitalix]
                     coefstd = stdx[0:4,vitalix]
                 axes[i,j].plot(centroids[centroids_ix][0:4,vitalix] * coefstd + coefmu, label=vital_types[vitalix])

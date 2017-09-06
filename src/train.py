@@ -2,6 +2,8 @@ import config as config_file
 import pandas as pd
 import pickle 
 import re
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pylab as plt
 import time
 from datetime import timedelta
@@ -135,20 +137,24 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
     print('AUC test: {0:4.3f}'.format(metrics.auc(fpr, tpr))+' Explained Variance Score Test: {0:4.3f}'.format(metrics.explained_variance_score(ytest, clf.predict(xtest))))
     return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest)
 
-def normalize(x, filter_percentile_more_than_percent=5):
-    bin_ix = ( x.min(axis=0) == 0 ) & ( x.max(axis=0) == 1)
+def normalize(x, filter_percentile_more_than_percent=5, mu=[], std=[], bin_ix=[]):
+    unobserved = (x == 0)*1.0
+    if len(bin_ix) == 0:
+        bin_ix = ( x.min(axis=0) == 0 ) & ( x.max(axis=0) == 1)
     xcop = x * 1.0
     xcop[xcop==0] = np.nan
-    mu = np.nanmean(xcop, axis=0)
-    mu[bin_ix] = 0.0
-    mu[np.isnan(mu)] = 0.0
-    std = np.nanstd(xcop, axis=0)
-    std[std==0]=1.0
-    std[bin_ix]=1.0
-    std[np.isnan(std)]=1.0
+    if len(mu) == 0:
+        mu = np.nanmean(xcop, axis=0)
+        mu[bin_ix] = 0.0
+        mu[np.isnan(mu)] = 0.0
+    if len(std) == 0:
+        std = np.nanstd(xcop, axis=0)
+        std[std==0]=1.0
+        std[bin_ix]=1.0
+        std[np.isnan(std)]=1.0
     normed_x = (x != 0) * ((x - mu)/ std*1.0)
     normed_x[abs(normed_x)>filter_percentile_more_than_percent] = 0
-    return normed_x, mu, std
+    return normed_x, mu, std, bin_ix, unobserved
 
 def variable_subset(x, varsubset, h):
     print('subsetting variables that are only:', varsubset)
@@ -159,8 +165,9 @@ def variable_subset(x, varsubset, h):
     # print(h, x)
     return x, h
 
-def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType='eucledian', cross_valid=True, mux=None, stdx=None, doImpute=False):
-    if feature_headers.__class__ == list:
+def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label,
+        dist_type='eucledian', cross_valid=True, mux=None, stdx=None, do_impute=False):
+    if isinstance(feature_headers, list):
         feature_headers = np.array(feature_headers)
     header_vital_ix = np.array([h.startswith('Vital') for h in feature_headers])
     headers_vital = feature_headers[header_vital_ix]
@@ -169,10 +176,7 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2la
     std_vital = stdx[header_vital_ix]
     import timeseries
     xnew, hnew, muxnew, stdxnew = timeseries.construct_temporal_data(x2_vitals, headers_vital, y2, y2label, mu_vital, std_vital)
-    centroids, assignments, trendArray, standardDevCentroids, cnt_clusters, distances = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew, distType=distType, cross_valid=cross_valid)
-    # import pdb
-    # pdb.set_trace()    
-    # trendArray = (trendArray - trendArray.mean(axis=0)) / trendArray.std(axis=0)
+    centroids, assignments, trendArray, standardDevCentroids, cnt_clusters, distances = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew, dist_type=dist_type, cross_valid=cross_valid)
     trendArray[trendArray!=0] = 1
     trend_headers = ['Trend:'+str(i)+' -occ:'+str(cnt_clusters[i]) for i in range(0, len(centroids))]
     return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew
@@ -185,12 +189,67 @@ def filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude):
     print(ix_header.sum())
     return corr_headers[ix_header], corr_matrix[:,ix_header]
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'],variableexclude=['Trend'], num_clusters=16, num_iters=100, distType='euclidean', corr_vars_exclude=['Vital'], returnDataForErrorAnalysis=False, doImpute=True, mrnForFilter=[], addTime=False): #filterSTR='Gender:0 male'
+def autoencoder_impute(x, bin_ix, hidden_nodes=100):
+    try:
+        import auto_encoder
+        import torch
+        import torch.nn as nn
+        import torch.optim as optim
+        from torch.autograd import Variable
+    except:
+        print('imputation requires pytorch. please install and make sure you can import it')
+        raise
+    cont_ix = (np.array(bin_ix) == False)
+    non_zero_ix = (x.sum(axis=0) != 0)
+    old_shape = x.shape
+    bin_ix = np.array(bin_ix)[non_zero_ix].tolist()
+    cont_ix = np.array(cont_ix)[non_zero_ix].tolist()
+    x = x[:, non_zero_ix]
+    x_cont = x[:,cont_ix]
+    x_bin = x[:,bin_ix]
+    print(sum(bin_ix), sum(cont_ix), hidden_nodes)
+
+    autoencoder = auto_encoder.AutoencoderConinBinar(x_bin.shape[1], x_cont.shape[1], hidden_nodes)
+    optimizer = optim.SGD(autoencoder.parameters(), lr=0.5)
+    np.random.seed(0)
+    lossfuncBin = nn.BCELoss()
+    lossfunccont = nn.MSELoss()
+    loss_list = []
+    for epoch in range(1, 200):
+        autoencoder.train()
+        for ix in range(len(x)):
+            databin = Variable(torch.from_numpy(x_bin[ix]).float())
+            datacont = Variable(torch.from_numpy(x_cont[ix]).float())
+            databoth = Variable(torch.from_numpy(np.hstack([x_bin[ix], x_cont[ix]]))).float()
+            optimizer.zero_grad()
+            xoutBin, xoutCont = autoencoder(databoth)
+            loss = lossfuncBin(xoutBin, databin) + lossfunccont(xoutCont, datacont)
+            loss_list.append(loss)
+            loss.backward()
+            optimizer.step()
+            
+    autoencoder.eval()
+    xout = np.zeros(x.shape)
+    for ix in range(len(x)):
+        databoth = Variable(torch.from_numpy(np.hstack([x_bin[ix], x_cont[ix]]))).float()
+        outbin, outcont = autoencoder(databoth)
+        xout[ix,bin_ix] = outbin.data.numpy()
+        xout[ix,cont_ix] = outcont.data.numpy()
+
+    xfinal = np.zeros(old_shape)
+    xfinal[:,non_zero_ix] = xout
+    return xfinal
+
+def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, do_impute=True, mrnForFilter=[], add_time=False): #filterSTR='Gender:0 male'
     x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
     ix, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns)
-    x2, mux, stdx = normalize(x2)
-    if addTime:
-        x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, distType, True, mux, stdx, doImpute)
+    x2, mux, stdx, bin_ix, unobserved  = normalize(x2)
+
+    if do_impute:
+        x2 = autoencoder_impute(x2, bin_ix)
+
+    if add_time:
+        x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, dist_type, True, mux, stdx, do_impute)
     else:
         centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = ['NaN']*7
 
@@ -199,7 +258,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
     corr_headers_filtered, corr_matrix_filtered = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
 
     if len(variablesubset) != 0:
-        x2, feature_headers = variable_subset(x2, variablesubset, variableexclude, feature_headers)
+        x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
 
     print ('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
     print ('normalizing output.'); y2 = (y2-y2.mean())/y2.std()
@@ -214,7 +273,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         return (filterSTR, [])
 
     if modelType == 'lasso' or modelType == 'randomforest' or modelType == 'gradientboost':
-        iters = 20
+        iters = 10
         model_weights_array = np.zeros((iters, x2.shape[1]), dtype=float)
         auc_test_list=np.zeros((iters), dtype=float); r2testlist = np.zeros((iters), dtype=float);
         for iteration in range(0,iters):
@@ -234,7 +293,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         r2test_mean = r2testlist.mean()
         r2test_ste = (1.96/np.sqrt(iters)) * r2testlist.std()
 
-        if returnDataForErrorAnalysis == True:
+        if return_data_for_error_analysis == True:
             print('lets analyse this')
             return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest)
 
@@ -274,8 +333,8 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
     for t in operating_Thresholds:
         tp = ((ytestlabel > 0) & (ytestpred.ravel() > t)).sum()*1.0
         tn = ((ytestlabel == 0) & (ytestpred.ravel() <= t)).sum()*1.0
-        fp = ((ytestlabel > 0) & (ytestpred.ravel() <= t)).sum()*1.0
-        fn = ((ytestlabel == 0) & (ytestpred.ravel() > t)).sum()*1.0
+        fn = ((ytestlabel > 0) & (ytestpred.ravel() <= t)).sum()*1.0
+        fp = ((ytestlabel == 0) & (ytestpred.ravel() > t)).sum()*1.0
 
         sens = tp / (tp + fn)
         spec = tn / (tn + fp) 
@@ -306,12 +365,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         tn = ((y2label == 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
         fp = ((y2label > 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
         fn = ((y2label == 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
-        # sens = tp / (tp + fn)
-        # spec = tn / (tn + fp) 
-        # ppv = tp / (tp + fp)
-        # acc = (tp + tn) / (tp + tn + fp + fn)
-        # f1 = 2*tp / (2*tp + fp + fn)
-
+        
         if fp*fn*tp*tn == 0:
             oratio = np.nan
             low_OR = np.nan
@@ -392,7 +446,7 @@ if __name__=='__main__':
     mrnsboys = pickle.load(open('mrnsboys.pkl','rb'))
     mrnsgirls = pickle.load(open('mrnsgirl.pkl','rb'))
 
-    (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrnsdummy) = train_regression_model_for_bmi(d1, d1mom, 4.5, 5.5, 0, 24, filterSTR=['Gender:1'], variablesubset=[], num_clusters=16, num_iters=100, distType='euclidean', modelType='lasso', returnDataForErrorAnalysis=False, addTime=True, mrnForFilter=mrnsgirl)
+    (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrnsdummy) = train_regression_model_for_bmi(d1, d1mom, 4.5, 5.5, 0, 24, filterSTR=['Gender:1'], variablesubset=[], num_clusters=16, num_iters=100, dist_type='euclidean', modelType='lasso', return_data_for_error_analysis=False, add_time=True, mrnForFilter=mrnsgirl)
 
     import time
     timestr = time.strftime("%Y%m%d-%H%M%S")
