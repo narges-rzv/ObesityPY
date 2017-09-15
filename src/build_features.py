@@ -12,7 +12,7 @@ from scipy import stats
 
 
 def build_features_icd(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    res = np.zeros(len(feature_headers), dtype=bool)
+    res = np.zeros(len(feature_headers), dtype=int)
     for diag in patient_data['diags']:
         # print(diag , diag.replace('.','').strip(), feature_index[diag.replace('.','').strip()])
         for edatel in patient_data['diags'][diag]:
@@ -20,10 +20,10 @@ def build_features_icd(patient_data, maternal_data, reference_date_start, refere
             if edate >= reference_date_end or edate <= reference_date_start:
                 continue
             try:
-                res[feature_index[diag.replace('.','').strip()]] = True
+                res[feature_index[diag.replace('.','').strip()]] += 1
             except KeyError:
                 try:
-                    res[feature_index[diag.replace('.','').strip()[0:-2]]] = True
+                    res[feature_index[diag.replace('.','').strip()[0:-2]]] += 1
                 except KeyError:
                     pass #print('--->',diag.replace('.','').strip()[0:-1])    
             break
@@ -189,29 +189,29 @@ def build_features_zipcd(patient_data, maternal_data, reference_date_start, refe
     return res
 
 def build_features_mat_icd(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    res = np.zeros(len(feature_headers), dtype=bool)
+    res = np.zeros(len(feature_headers), dtype=int)
     if 'diags' not in maternal_data:
         return res
     for diag in maternal_data['diags']:
         # print(diag , diag.replace('.','').strip(), feature_index[diag.replace('.','').strip()])
         try:
-            res[feature_index[diag.replace('.','').strip()]] = True
+            res[feature_index[diag.replace('.','').strip()]] += 1
         except KeyError:
             try:
-                res[feature_index[diag.replace('.','').strip()[0:-2]]] = True
+                res[feature_index[diag.replace('.','').strip()[0:-2]]] += 1
             except KeyError:
                 pass #print('--->',diag.replace('.','').strip()[0:-1])
     return res
 def build_features_nb_icd(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    res = np.zeros(len(feature_headers), dtype=bool)
+    res = np.zeros(len(feature_headers), dtype=int)
     if 'nbdiags' not in maternal_data:
         return res
     for diag in maternal_data['nbdiags']:
         try:
-            res[feature_index[diag.replace('.','').strip()]] = True
+            res[feature_index[diag.replace('.','').strip()]] += 1
         except KeyError:
             try:
-                res[feature_index[diag.replace('.','').strip()[0:-2]]] = True
+                res[feature_index[diag.replace('.','').strip()[0:-2]]] += 1
             except KeyError:
                 pass #print('--->',diag.replace('.','').strip()[0:-1])    
     return res

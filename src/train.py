@@ -64,7 +64,8 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
         import cnn
     if modelType == 'gradientboost':
         from sklearn.ensemble import GradientBoostingRegressor
-
+    if modelType == 'lars':
+        from sklearn import linear_model
     N = x.shape[0]
     ixlist = np.arange(0,N)    
     
@@ -92,6 +93,8 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
         hyperparamlist = [(0.1)]
     if modelType == 'gradientboost':
         hyperparamlist = [(1500, 4, 2, 0.01,'lad'), (2500, 4, 2, 0.01,'lad')]
+    if modelType == 'lars':
+        hyperparamlist = [0.001, 0.01, 0.1]
 
     for alpha_i in hyperparamlist:
         if modelType == 'lasso':
@@ -102,6 +105,8 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
             clf = RandomForestRegressor(random_state=0, n_estimators=alpha_i[0], min_samples_split=alpha_i[1])
         if modelType == 'gradientboost':
             clf = GradientBoostingRegressor(n_estimators=alpha_i[0], max_depth=alpha_i[1], min_samples_split=alpha_i[2], learning_rate=alpha_i[3], loss=alpha_i[4])
+        if modelType == 'lars':
+            clf = linear_model.LassoLars(alpha=alpha_i)
         # if modelType == 'temporalCNN':
             # xcnndataTrain, xcnndataTest = xtrain.reshape(, xtest # need to be of size |vitals| x |time| x 
             # clf = cnn.TemporalCNN(5, 8, 8, 64, 1)
@@ -123,6 +128,8 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
         clf = RandomForestRegressor(random_state=0, n_estimators=best_alpha[0], min_samples_split=best_alpha[1])
     if modelType == 'gradientboost':
         clf = GradientBoostingRegressor(n_estimators=best_alpha[0], max_depth=best_alpha[1], min_samples_split=best_alpha[2], learning_rate=best_alpha[3], loss=best_alpha[4])
+    if modelType == 'lars':
+        clf = linear_model.LassoLars(alpha=best_alpha)
 
     clf.fit(xtrain,ytrain)
     
@@ -187,7 +194,7 @@ def filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude):
         if (item in corr_vars_exclude) or sum([item.startswith(ii) for ii in corr_vars_exclude]) > 0 :
             ix_header[ind] = False
     print(ix_header.sum())
-    return corr_headers[ix_header], corr_matrix[:,ix_header]
+    return corr_headers[ix_header], corr_matrix[:,ix_header], ix_header
 
 def autoencoder_impute(x, bin_ix, hidden_nodes=100):
     try:
@@ -240,10 +247,18 @@ def autoencoder_impute(x, bin_ix, hidden_nodes=100):
     xfinal[:,non_zero_ix] = xout
     return xfinal
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, do_impute=True, mrnForFilter=[], add_time=False): #filterSTR='Gender:0 male'
+def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True): #filterSTR='Gender:0 male'
+    
     x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
+    if binarize_diagnosis:
+        bin_ix = True - np.array([(h.startswith('Vital') or h.startswith('MatDeliveryAge')) for h in feature_headers])
+        print(bin_ix.sum(), 'features are binary')
+        x1[:,bin_ix] = (x1[:,bin_ix] > 0) * 1.0
+    
     ix, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns)
-    x2, mux, stdx, bin_ix, unobserved  = normalize(x2)
+    
+    if do_impute or do_normalize or add_time:
+        x2, mux, stdx, bin_ix, unobserved  = normalize(x2, bin_ix=bin_ix)
 
     if do_impute:
         x2 = autoencoder_impute(x2, bin_ix)
@@ -255,7 +270,8 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 
     corr_headers = np.array(feature_headers)
     corr_matrix = np.corrcoef(x2.transpose())
-    corr_headers_filtered, corr_matrix_filtered = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
+    corr_headers_filtered, corr_matrix_filtered, ix_corr_headers = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
+    print('corr matrix is filtered to size', corr_matrix_filtered.shape)
 
     if len(variablesubset) != 0:
         x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
@@ -272,7 +288,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         print('Not enough subjects. Next.')
         return (filterSTR, [])
 
-    if modelType == 'lasso' or modelType == 'randomforest' or modelType == 'gradientboost':
+    if modelType == 'lasso' or modelType == 'randomforest' or modelType == 'gradientboost' or modelType == 'lars':
         iters = 10
         model_weights_array = np.zeros((iters, x2.shape[1]), dtype=float)
         auc_test_list=np.zeros((iters), dtype=float); r2testlist = np.zeros((iters), dtype=float);
@@ -282,7 +298,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
             randix = randix[0:int(len(randix)*0.9)]
             datax = x2[randix,:]; datay=y2[randix]; dataylabel = y2label[randix]; mrnx = mrns[randix]
             (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest) = train_regression(datax, datay, dataylabel, percentile, modelType, feature_headers, mrnx)
-            model_weights_array[iteration, :] = model.coef_ if (modelType == 'lasso') else model.feature_importances_
+            model_weights_array[iteration, :] = model.coef_ if ((modelType == 'lasso') or (modelType == 'lars')) else model.feature_importances_
             auc_test_list[iteration] = auc_test; r2testlist[iteration] = r2test
             
         model_weights = model_weights_array.mean(axis=0)
@@ -295,7 +311,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 
         if return_data_for_error_analysis == True:
             print('lets analyse this')
-            return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest)
+            return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest, mrns)
 
     else:
         (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest) = train_regression(x2, y2, y2label, percentile, modelType, feature_headers, mrnx)    
@@ -356,10 +372,9 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
     for i in range(0, (abs(model_weights)>0).sum()):
         fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, xtest_reordered[:,i].ravel())
         feature_auc_indiv = metrics.auc(fpr, tpr)
-        ix_in_corr_matrix = np.array([hi == factors[i] for hi in corr_headers])
-        corrs = corr_matrix_filtered[ix_in_corr_matrix,:].ravel()
+        corrs = corr_matrix_filtered[sorted_ix[i],:].ravel()
         top_corr_ix = np.argsort(-1*corrs)
-        corr_string = ''#    Correlated most with:\n'+'\n    '.join( [str(corr_headers_filtered[top_corr_ix[j]])+ ':' + "{0:4.3f}".format(corrs[top_corr_ix[j]]) for j in range(0,10)]  ) 
+        corr_string = 'Correlated most with:\n'+'    '.join( [str(corr_headers_filtered[top_corr_ix[j]])+ ':' + "{0:4.3f}\n".format(corrs[top_corr_ix[j]]) for j in range(0,10)]  ) 
 
         tp = ((y2label > 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
         tn = ((y2label == 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
