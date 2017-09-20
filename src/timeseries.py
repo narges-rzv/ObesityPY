@@ -180,7 +180,7 @@ def k_means_clust(data, num_clust, num_iter, headers, centroids=None, cluster_ag
     print('average distances is: {0:4.3f}'.format(distances.mean()))
     return centroids, assignments, trendVars, standardDevCentroids, cnt_clusters, distances
 
-def plot_trends(centroids, headers, standardDevCentroids=None, cnt_clusters=[], mux=[], stdx=[]):
+def plot_trends(centroids, headers, standardDevCentroids=[], cnt_clusters=[], mux=[], stdx=[]):
     vital_types = [h.strip('-avg0to1').split(':')[1] for h in headers[0,:]]
     print(vital_types)
     sizex = int(math.ceil(np.sqrt(len(centroids))))
@@ -199,7 +199,7 @@ def plot_trends(centroids, headers, standardDevCentroids=None, cnt_clusters=[], 
                     coefstd = stdx[0:4,vitalix]
                 axes[i,j].plot(centroids[centroids_ix][0:4,vitalix] * coefstd + coefmu, label=vital_types[vitalix])
                 axes[i,j].set_title('Trend:'+str(centroids_ix) + (' cnt:' + str(cnt_clusters[centroids_ix] if cnt_clusters != [] else '')), fontsize=6)
-                if standardDevCentroids != None:
+                if len(standardDevCentroids) != 0:
                     axes[i,j].fill_between(range(len(centroids[centroids_ix][0:4,vitalix])), (centroids[centroids_ix][0:4,vitalix]+standardDevCentroids[centroids_ix][0:4,vitalix])* coefstd + coefmu, (centroids[centroids_ix][0:4,vitalix]-standardDevCentroids[centroids_ix][0:4,vitalix])* coefstd + coefmu, alpha=0.1)
     axes[0,0].legend(fontsize = 6)
 

@@ -14,40 +14,55 @@ import build_features
 import random
 from sklearn import metrics
 from sklearn.preprocessing import Imputer
+random.seed(2)
 
-def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR='', percentile=False, mrns=[]):
+
+def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentile=False, mrns=[], filterSTRThresh=[]):
+    if filterSTR.__class__ == list:
+        pass
+    else:
+        filterSTR = [filterSTR]
+
+    if len(filterSTRThresh) != len(filterSTR):
+        filterSTRThresh = []
+
+    if len(filterSTRThresh) == 0 :
+        filterSTRThresh = [0.5]*len(filterSTR) #make it binary, as before.
+
     print('x shape:', x.shape, 'num features:',len(headers))
+
     index_finder_anyvital = np.array([h.startswith('Vital') for h in headers])
     index_finder_maternal = np.array([h.startswith('Maternal') for h in headers])
-    if filterSTR.__class__ == list:
-        index_finder_filterstr = np.zeros(len(headers))
-        for fstr in filterSTR:
-            # print(index_finder_filterstr + np.array([h.startswith(fstr) for h in headers]))
-            index_finder_filterstr_tmp = np.array([h.startswith(fstr) for h in headers])
-            if index_finder_filterstr_tmp.sum() > 1:
-                print('alert: filter returned more than one feature:', fstr)
-                index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
-                print('set filter to h==', fstr)
-            index_finder_filterstr = index_finder_filterstr + index_finder_filterstr_tmp
-        index_finder_filterstr = (index_finder_filterstr > 0)
-    else:
-        index_finder_filterstr = np.array([h.startswith(filterSTR) for h in headers])
 
-    if index_finder_filterstr.sum() > 1 and filterSTR.__class__ != list:
-        print('instead of *startswith*',filterSTR,'...trying *equals to*', filterSTR)
-        index_finder_filterstr = np.array([h == filterSTR for h in headers])
+    index_finder_filterstr = np.zeros(len(headers))
 
-    if filterSTR != '' and percentile == False:
-        ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr]!=0).sum(axis=1) >= len(filterSTR)).ravel()) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1) #& ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+    for fstr in filterSTR:
+        # print(index_finder_filterstr + np.array([h.startswith(fstr) for h in headers]))
+        index_finder_filterstr_tmp = np.array([h.startswith(fstr) for h in headers])
+        if index_finder_filterstr_tmp.sum() > 1:
+            print('alert: filter returned more than one feature:', fstr)
+            index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
+            print('set filter to h==', fstr)
+        index_finder_filterstr = index_finder_filterstr + index_finder_filterstr_tmp
+    index_finder_filterstr = (index_finder_filterstr > 0)
 
-    elif percentile == False:
-        ix = (y > 10) & (y < 40) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1)
-        print(ix.sum())
+    # if index_finder_filterstr.sum() > 1 and filterSTR.__class__ != list:
+    #     print('instead of *startswith*',filterSTR,'...trying *equals to*', filterSTR)
+    #     index_finder_filterstr = np.array([h == filterSTR for h in headers])
+
+    # import pdb
+    # pdb.set_trace()
+    if (len(filterSTR) != 0) and (percentile == False):
+        ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1) #& ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+
+    # elif percentile == False:
+    #     ix = (y > 10) & (y < 40) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1)
+    #     print(ix.sum())
         
-    if (percentile == True) & (filterSTR != ''):
-        ix = (x[:,index_finder_filterstr].ravel() == True) 
-    elif percentile == True:
-        ix = (x[:,index_finder_filterstr].ravel() >= False) 
+    # if (percentile == True) & (len(filterSTR) != 0):
+    #     ix = (x[:,index_finder_filterstr].ravel() == True) 
+    # elif percentile == True:
+    #     ix = (x[:,index_finder_filterstr].ravel() >= False) 
     print(str(ix.sum()) + ' patients selected..')
     return ix, x[ix,:], y[ix], ylabel[ix], mrns[ix]
 
@@ -70,7 +85,6 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
     ixlist = np.arange(0,N)    
     
 
-    random.seed(2)
     random.shuffle(ixlist)
     xtrain = x[ixlist[0:int(N*2/3)], :]
     ytrain = y[ixlist[0:int(N*2/3)]]
@@ -173,7 +187,7 @@ def variable_subset(x, varsubset, h):
     return x, h
 
 def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label,
-        dist_type='eucledian', cross_valid=True, mux=None, stdx=None, do_impute=False):
+        dist_type='eucledian', cross_valid=True, mux=None, stdx=None, do_impute=False, subset=[]):
     if isinstance(feature_headers, list):
         feature_headers = np.array(feature_headers)
     header_vital_ix = np.array([h.startswith('Vital') for h in feature_headers])
@@ -182,8 +196,8 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2la
     mu_vital = mux[header_vital_ix]
     std_vital = stdx[header_vital_ix]
     import timeseries
-    xnew, hnew, muxnew, stdxnew = timeseries.construct_temporal_data(x2_vitals, headers_vital, y2, y2label, mu_vital, std_vital)
-    centroids, assignments, trendArray, standardDevCentroids, cnt_clusters, distances = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew, dist_type=dist_type, cross_valid=cross_valid)
+    xnew, hnew, muxnew, stdxnew = timeseries.construct_temporal_data(x2_vitals, headers_vital, y2, y2label, mu_vital, std_vital, subset)
+    centroids, assignments, trendArray, standardDevCentroids, cnt_clusters, distances = timeseries.k_means_clust(xnew, num_clusters, num_iters, hnew, distType=dist_type, cross_valid=cross_valid)
     trendArray[trendArray!=0] = 1
     trend_headers = ['Trend:'+str(i)+' -occ:'+str(cnt_clusters[i]) for i in range(0, len(centroids))]
     return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew
@@ -247,15 +261,16 @@ def autoencoder_impute(x, bin_ix, hidden_nodes=100):
     xfinal[:,non_zero_ix] = xout
     return xfinal
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True): #filterSTR='Gender:0 male'
+def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
     
     x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic,data_dic_mom, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
+
     if binarize_diagnosis:
         bin_ix = True - np.array([(h.startswith('Vital') or h.startswith('MatDeliveryAge')) for h in feature_headers])
         print(bin_ix.sum(), 'features are binary')
         x1[:,bin_ix] = (x1[:,bin_ix] > 0) * 1.0
     
-    ix, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns)
+    ix, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh)
     
     if do_impute or do_normalize or add_time:
         x2, mux, stdx, bin_ix, unobserved  = normalize(x2, bin_ix=bin_ix)
@@ -264,7 +279,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         x2 = autoencoder_impute(x2, bin_ix)
 
     if add_time:
-        x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, dist_type, True, mux, stdx, do_impute)
+        x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, dist_type, True, mux, stdx, do_impute, subset)
     else:
         centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = ['NaN']*7
 
@@ -292,7 +307,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         iters = 10
         model_weights_array = np.zeros((iters, x2.shape[1]), dtype=float)
         auc_test_list=np.zeros((iters), dtype=float); r2testlist = np.zeros((iters), dtype=float);
-        for iteration in range(0,iters):
+        for iteration in range(0, iters):
             randix = list(range(0, x2.shape[0]))
             random.shuffle(randix)
             randix = randix[0:int(len(randix)*0.9)]
@@ -346,6 +361,9 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 
     operating_Thresholds = thresholds
     report_metrics = 'Test set metrics:\n'
+    prec_list = []
+    recall_list = []
+    spec_list = []
     for t in operating_Thresholds:
         tp = ((ytestlabel > 0) & (ytestpred.ravel() > t)).sum()*1.0
         tn = ((ytestlabel == 0) & (ytestpred.ravel() <= t)).sum()*1.0
@@ -358,7 +376,10 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         acc = (tp + tn) / (tp + tn + fp + fn)
         f1 = 2*tp / (2*tp + fp + fn)
 
-        report_metrics += '@threshold:{0:4.3f}, sens:{1:4.3f}, spec:{2:4.3f}, ppv:{3:4.3f}, acc:{4:4.3f}, f1:{5:4.3f} \n'.format(t, sens, spec, ppv, acc, f1)
+        report_metrics += '@threshold:{0:4.3f}, sens:{1:4.3f}, spec:{2:4.3f}, ppv:{3:4.3f}, acc:{4:4.3f}, f1:{5:4.3f} total+:{6:4.3f}\n'.format(t, sens, spec, ppv, acc, f1, tp+fp)
+        prec_list.append(ppv)
+        recall_list.append(sens)
+        spec_list.append(spec)
     
     print('total variables', x2.sum(axis=0).shape, ' and total subjects:', x2.shape[0])
     print('->AUC test: {0:4.3f} [{1:4.3f} {2:4.3f}]'.format(test_auc_mean, test_auc_mean - test_auc_mean_ste, test_auc_mean + test_auc_mean_ste))
@@ -373,13 +394,13 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
         fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, xtest_reordered[:,i].ravel())
         feature_auc_indiv = metrics.auc(fpr, tpr)
         corrs = corr_matrix_filtered[sorted_ix[i],:].ravel()
-        top_corr_ix = np.argsort(-1*corrs)
+        top_corr_ix = np.argsort(-1*abs(corrs))
         corr_string = 'Correlated most with:\n'+'    '.join( [str(corr_headers_filtered[top_corr_ix[j]])+ ':' + "{0:4.3f}\n".format(corrs[top_corr_ix[j]]) for j in range(0,10)]  ) 
 
         tp = ((y2label > 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
         tn = ((y2label == 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
-        fp = ((y2label > 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
-        fn = ((y2label == 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
+        fn = ((y2label > 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
+        fp = ((y2label == 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
         
         if fp*fn*tp*tn == 0:
             oratio = np.nan
@@ -404,7 +425,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, agex_low, agex_high, 
 
     for k in feature_categories:
         print (k, ":", feature_categories[k])
-    return (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns) 
+    return (filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list) 
 
 def analyse_errors(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest):
     pred = model.predict(xtrain)
@@ -420,7 +441,7 @@ def analyse_errors(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel,
     ix_sorted_test = np.argsort(-1*(predtest))[0:int(len(predtest)/3)]
     ix_sorted_train = np.argsort(-1*(predtrain))[0:int(len(predtrain)/3)]
 
-    return list(mrnstest[ix_sorted_test])+list(mrnstrain[ix_sorted_train])
+    # return list(mrnstest[ix_sorted_test])+list(mrnstrain[ix_sorted_train])
     # plt.plot(predtest[ix_sorted_test])
     # plt.plot(ytest[ix_sorted_test])
     # plt.plot(ytestlabel[ix_sorted_test])
