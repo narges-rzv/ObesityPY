@@ -11,7 +11,7 @@ import outcome_def_pediatric_obesity
 from scipy import stats
 
 
-def build_features_icd(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_icd(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=int)
     for diag in patient_data['diags']:
         # print(diag , diag.replace('.','').strip(), feature_index[diag.replace('.','').strip()])
@@ -29,7 +29,7 @@ def build_features_icd(patient_data, maternal_data, reference_date_start, refere
             break
     return res
 
-def build_features_lab(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_lab(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=float)
     for key1 in patient_data['labs']:
         for edatel in patient_data['labs'][key1]:
@@ -43,7 +43,7 @@ def build_features_lab(patient_data, maternal_data, reference_date_start, refere
             break
     return res
 
-def build_features_med(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_med(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     for key1 in patient_data['meds']:
         for edatel in patient_data['meds'][key1]:
@@ -57,13 +57,13 @@ def build_features_med(patient_data, maternal_data, reference_date_start, refere
             break
     return res
 
-def build_features_gen(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_gen(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     code = patient_data['gender']
     res[feature_index[int(code)]] = True
     return res
 
-def build_features_vitalLatest(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_vitalLatest(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=float)
     bdate = patient_data['bdate']
     for code in patient_data['vitals']:
@@ -76,58 +76,58 @@ def build_features_vitalLatest(patient_data, maternal_data, reference_date_start
                 pass
     return res
 
-def build_features_vitalAverage_0_1(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 1)
+def build_features_vitalAverage_0_1(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 1)
 
-def build_features_vitalAverage_1_3(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 1, 3)
+def build_features_vitalAverage_1_3(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 1, 3)
 
-def build_features_vitalAverage_3_5(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 3, 5)
+def build_features_vitalAverage_3_5(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 3, 5)
 
-def build_features_vitalAverage_5_7(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 5, 7)
+def build_features_vitalAverage_5_7(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 5, 7)
 
-def build_features_vitalAverage_7_10(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 7, 10)
+def build_features_vitalAverage_7_10(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 7, 10)
 
-def build_features_vitalAverage_10_13(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 10, 13)
+def build_features_vitalAverage_10_13(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 10, 13)
 
-def build_features_vitalAverage_13_16(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 13, 16)
+def build_features_vitalAverage_13_16(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 13, 16)
 
-def build_features_vitalAverage_16_19(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 16, 19)
+def build_features_vitalAverage_16_19(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 16, 19)
 
-def build_features_vitalAverage_19_24(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 19, 24)
+def build_features_vitalAverage_19_24(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 19, 24)
 
-def build_features_vitalAverage_0_3(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 3)
+def build_features_vitalAverage_0_3(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 3)
 
-def build_features_vitalAverage_3_6(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 3, 6)
+def build_features_vitalAverage_3_6(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 3, 6)
 
-def build_features_vitalAverage_6_9(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 6, 9)
+def build_features_vitalAverage_6_9(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 6, 9)
 
-def build_features_vitalAverage_9_12(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 9, 12)
+def build_features_vitalAverage_9_12(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 9, 12)
 
-def build_features_vitalAverage_12_15(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 12, 15)
+def build_features_vitalAverage_12_15(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 12, 15)
 
-def build_features_vitalAverage_15_18(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 15, 18)
+def build_features_vitalAverage_15_18(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 15, 18)
 
-def build_features_vitalAverage_18_21(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 18, 21)
+def build_features_vitalAverage_18_21(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 18, 21)
 
-def build_features_vitalAverage_18_24(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, 18, 24)
+def build_features_vitalAverage_18_24(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 18, 24)
 
-def build_features_vitalAverage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers, frommonth, tomonth):
+def build_features_vitalAverage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, frommonth, tomonth):
     res = np.zeros(len(feature_headers), dtype=float)
     res_cnt = np.zeros(len(feature_headers), dtype=float)
     bdate = patient_data['bdate']
@@ -148,14 +148,14 @@ def build_features_vitalAverage(patient_data, maternal_data, reference_date_star
     res = res/res_cnt
     return res
 
-def build_features_ethn(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_ethn(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     code = patient_data['ethnicity']
     if code in feature_index and pd.notnull(code):
         res[feature_index[code]] = True
     return res
 
-def build_features_mat_insurance1(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_mat_insurance1(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'insur1' not in maternal_data:
         # print (maternal_data)
@@ -164,7 +164,7 @@ def build_features_mat_insurance1(patient_data, maternal_data, reference_date_st
     if code in feature_index and pd.notnull(code):
         res[feature_index[code]] = True
     return res
-def build_features_mat_insurance2(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_mat_insurance2(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'insur2' not in maternal_data:
         # print (maternal_data)
@@ -174,13 +174,13 @@ def build_features_mat_insurance2(patient_data, maternal_data, reference_date_st
         res[feature_index[code]] = True
     return res
 
-def build_features_race(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_race(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     code = patient_data['race']
     if code in feature_index and pd.notnull(code):
         res[feature_index[code]] = True
     return res
-def build_features_zipcd(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_zipcd(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'zip' in patient_data:
         code = patient_data['zip'][0][1]
@@ -188,7 +188,22 @@ def build_features_zipcd(patient_data, maternal_data, reference_date_start, refe
             res[feature_index[code]] = True
     return res
 
-def build_features_mat_icd(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_census(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    res = np.zeros(len(feature_headers), dtype=float)
+    if len(lat_lon_data) == 0:
+        return res
+    tract = lat_lon_data['centrac']
+    cntylist = lat_lon_data['county']
+    elem = []
+    for c in cntylist:
+        try:
+            for k in env_data[tract][c]:
+                res[feature_index[k]]=float(env_data[tract][c][k])
+        except KeyError:
+            continue
+    return res
+
+def build_features_mat_icd(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=int)
     if 'diags' not in maternal_data:
         return res
@@ -202,7 +217,7 @@ def build_features_mat_icd(patient_data, maternal_data, reference_date_start, re
             except KeyError:
                 pass #print('--->',diag.replace('.','').strip()[0:-1])
     return res
-def build_features_nb_icd(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_nb_icd(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=int)
     if 'nbdiags' not in maternal_data:
         return res
@@ -215,7 +230,7 @@ def build_features_nb_icd(patient_data, maternal_data, reference_date_start, ref
             except KeyError:
                 pass #print('--->',diag.replace('.','').strip()[0:-1])    
     return res
-def build_features_mat_race(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_mat_race(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'race' not in maternal_data:
         return res
@@ -224,7 +239,7 @@ def build_features_mat_race(patient_data, maternal_data, reference_date_start, r
         res[feature_index[code]] = True
     return res
 
-def build_features_mat_ethn(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_mat_ethn(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'ethnicity' not in maternal_data:
         return res
@@ -233,7 +248,7 @@ def build_features_mat_ethn(patient_data, maternal_data, reference_date_start, r
         res[feature_index[code]] = True
     return res
 
-def build_features_mat_lang(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_mat_lang(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'lang' not in maternal_data:
         return res
@@ -242,7 +257,7 @@ def build_features_mat_lang(patient_data, maternal_data, reference_date_start, r
         res[feature_index[code]] = True
     return res
 
-def build_features_mat_natn(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_mat_natn(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'nationality' not in maternal_data:
         return res
@@ -251,7 +266,7 @@ def build_features_mat_natn(patient_data, maternal_data, reference_date_start, r
         res[feature_index[code]] = True
     return res
 
-def build_features_mat_marriage(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_mat_marriage(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'marriage' not in maternal_data:
         return res
@@ -259,7 +274,7 @@ def build_features_mat_marriage(patient_data, maternal_data, reference_date_star
     if code in feature_index and pd.notnull(code):
         res[feature_index[code]] = True
     return res
-def build_features_mat_birthpl(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_mat_birthpl(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'birthplace' not in maternal_data:
         return res
@@ -267,7 +282,7 @@ def build_features_mat_birthpl(patient_data, maternal_data, reference_date_start
     if code in feature_index and pd.notnull(code):
         res[feature_index[code]] = True
     return res
-def build_features_mat_agedel(patient_data, maternal_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+def build_features_mat_agedel(patient_data, maternal_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=int)
     if 'agedeliv' not in maternal_data:
         return res
@@ -528,6 +543,20 @@ def build_feature_zipcd_index():
             feature_index[code] = [ix]
     feature_headers = ['Zipcode:'+ i for i in codesNnames]
     return feature_index, feature_headers
+
+def build_feature_census_index(env_dic):
+    feature_index = {}
+    feature_headers = []
+    counter = 0
+    for item in env_dic:
+        for item2 in env_dic[item]:
+            for k in env_dic[item][item2]:
+                if k not in feature_index:
+                    feature_index[k] = counter
+                    counter += 1
+    feature_headers = ['Census:'+ i for i in feature_index]
+    return feature_index, feature_headers
+
 def build_feature_race_index():
     try:
         codesNnames = [l.strip().decode('utf-8') for l in open(config_file.raceList, 'rb').readlines()]
@@ -608,7 +637,7 @@ def build_feature_ICD_index():
     # feature_headers = ['Diagnosis:' + i for i in  (icd9 + icd10)]
     return feature_index, feature_headers
 
-def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=[]):
+def call_build_function(data_dic, data_dic_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=[]):
     outcome = np.zeros(len(data_dic.keys()), dtype=float)
     outcomelabels = np.zeros(len(data_dic.keys()), dtype=float)
     feature_index_gen, feature_headers_gen = build_feature_gender_index()
@@ -618,6 +647,7 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
     feature_index_ethn, feature_headers_ethn = build_feature_ethn_index()
     feature_index_race, feature_headers_race = build_feature_race_index()
     feature_index_zipcd, feature_headers_zipcd = build_feature_zipcd_index()
+    feature_index_census, feature_headers_census = build_feature_census_index(env_dic)
     feature_index_vitalLatest, feature_headers_vitalsLatest = build_feature_vitallatest_index()
     
     feature_index_mat_ethn, feature_headers_mat_ethn = build_feature_matethn_index()
@@ -659,6 +689,7 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
         (build_features_vitalAverage_19_24, [ feature_index_vitalLatest, [h+'-avg19to24' for h in feature_headers_vitalsLatest]]),
         # environment
         (build_features_zipcd, [ feature_index_zipcd, feature_headers_zipcd]),
+        (build_features_census, [ feature_index_census, feature_headers_census]),
         # maternal features
         (build_features_mat_icd, [ feature_index_mat_icd, feature_headers_mat_icd]), #
         (build_features_nb_icd, [ feature_index_nb_icd, feature_headers_nb_icd]),
@@ -700,6 +731,11 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
                             maternal_data = data_dic_moms[data_dic[k]['mrn']]
                         else:
                             maternal_data = {}
+                        if data_dic[k]['mrn'] in lat_lon_dic:
+                            lat_lon_item = lat_lon_dic[data_dic[k]['mrn']]
+                        else:
+                            # print('no lat/lon for mrn:', data_dic[k]['mrn'])
+                            lat_lon_item = {}
                         ix_pos_start = 0
                         ix_pos_end = len(funcs[0][1][1])
                         for (pos, f) in enumerate(funcs):
@@ -707,6 +743,8 @@ def call_build_function(data_dic, data_dic_moms, agex_low, agex_high, months_fro
                             features[ix, ix_pos_start:ix_pos_end] = func(
                                 data_dic[k], 
                                 maternal_data,
+                                lat_lon_item,
+                                env_dic,
                                 bdate + timedelta(days=months_from*30), 
                                 bdate + timedelta(days=months_to*30), 
                                 *f[1])

@@ -38,10 +38,23 @@ def parse_lat_lon_data(data):
     col_lon = 'Long'
     col_censustract = 'WA2_2010CensusTract'
     col_censusblock = 'WA2_2010CensusBlock'
+    col_census_city = 'City
+    col_census_zip = 'zip'
     '''
+    ziptocounty_np = np.loadtxt(config_file.zip_to_county, delimiter=',')
+    county_cds = {}
+    for ix, row in enumerate(ziptocounty_np):
+        if str(int(row[1])) in county_cds:
+            county_cds[str(int(row[1]))].append(int(row[0]))
+        else:
+            county_cds[str(int(row[1]))] = [int(row[0])]
+
     db = {}
     for ix, item in data.iterrows():
-        mrn = item[config_file.col_mrn_latlon]
+        try:
+            mrn = int(item[config_file.col_mrn_latlon])
+        except ValueError:
+            continue
         db[mrn]={}
         try:
             lat = float(item[config_file.col_lat])
@@ -59,13 +72,28 @@ def parse_lat_lon_data(data):
             censblock = int(item[config_file.col_censusblock])
         except:
             print('census block is not int!', item[config_file.col_censusblock])
+        try:
+            censcity = item[config_file.col_census_city]
+        except:
+            print('census city invalid', item[config_file.col_census_city])
+        try:
+            censzip = str(item[config_file.col_census_zip])
+        except:
+            print('census zip invalid', item[config_file.col_census_zip])
         
         db[mrn]['lat'] = lat
         db[mrn]['lon'] = lon
         db[mrn]['centrac'] = centrac
         db[mrn]['censblock'] = censblock
+        db[mrn]['city'] = censcity
+        db[mrn]['zip'] = censzip
+        try:
+            db[mrn]['county'] = county_cds[censzip]        
+        except KeyError:
+            print(censzip)
+            db[mrn]['county'] = []
 
-    pickle.dump(file=open('lat_lon_data_20170817.pkl', 'wb'), obj=db, protocol=2)
+    pickle.dump(file=open('lat_lon_data_20170920.pkl', 'wb'), obj=db, protocol=2)
 
 def parse_data(data):
     db = {}
