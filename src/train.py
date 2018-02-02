@@ -11,7 +11,6 @@ from dateutil import parser
 import numpy as np
 import outcome_def_pediatric_obesity
 import build_features
-import build_features_temporal
 import random
 from sklearn import metrics
 from sklearn.preprocessing import Imputer
@@ -99,15 +98,15 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
     best_alpha = -1
     best_score = -10000
     if modelType == 'lasso':
-        hyperparamlist = [0.001, 0.005, 0.01, 0.1]
+        hyperparamlist = [0.001, 0.005, 0.01, 0.1] #[alpha]
     if modelType == 'mlp':
-        hyperparamlist = [(10,), (50,), (10,10), (50,10), (100,)]
+        hyperparamlist = [(10,), (50,), (10,10), (50,10), (100,)] #[hidden_layer_sizes]
     if modelType == 'randomforest':
-        hyperparamlist = [(2000,2), (2000,4), (2000,10)]
+        hyperparamlist = [(est,minSplit,minLeaf) for est in [3000] for minSplit in [2] for minLeaf in (1,2,5,7)] #(2000,2), (2000,4), (2000,10) #[n_estimators, min_samples_split, min_samples_leaf]
     if modelType == 'temporalCNN':
         hyperparamlist = [(0.1)]
     if modelType == 'gradientboost':
-        hyperparamlist = [(1500, 4, 2, 0.01,'lad'), (2500, 4, 2, 0.01,'lad')]
+        hyperparamlist = [(1500, 4, 2, 0.01,'lad'), (2500, 4, 2, 0.01,'lad')] #[n_estimators, max_depth, min_samples_split, learning_rate, loss]
     if modelType == 'lars':
         hyperparamlist = [0.001, 0.01, 0.1]
 
@@ -117,7 +116,7 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
         if modelType == 'mlp':
             clf = MLPRegressor(hidden_layer_sizes=alpha_i, solver="lbfgs", verbose=True)
         if modelType == 'randomforest':
-            clf = RandomForestRegressor(random_state=0, n_estimators=alpha_i[0], min_samples_split=alpha_i[1])
+            clf = RandomForestRegressor(random_state=0, n_estimators=alpha_i[0], min_samples_split=alpha_i[1], min_samples_leaf=alpha_i[2], n_jobs=-1)
         if modelType == 'gradientboost':
             clf = GradientBoostingRegressor(n_estimators=alpha_i[0], max_depth=alpha_i[1], min_samples_split=alpha_i[2], learning_rate=alpha_i[3], loss=alpha_i[4])
         if modelType == 'lars':
@@ -140,7 +139,7 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
     if modelType == 'mlp':
         clf = MLPRegressor(hidden_layer_sizes=best_alpha,solver="lbfgs", verbose=True)
     if modelType == 'randomforest':
-        clf = RandomForestRegressor(random_state=0, n_estimators=best_alpha[0], min_samples_split=best_alpha[1])
+        clf = RandomForestRegressor(random_state=0, n_estimators=best_alpha[0], min_samples_split=best_alpha[1], min_samples_leaf=best_alpha[2], n_jobs=-1)
     if modelType == 'gradientboost':
         clf = GradientBoostingRegressor(n_estimators=best_alpha[0], max_depth=best_alpha[1], min_samples_split=best_alpha[2], learning_rate=best_alpha[3], loss=best_alpha[4])
     if modelType == 'lars':
@@ -187,8 +186,7 @@ def variable_subset(x, varsubset, h):
     # print(h, x)
     return x, h
 
-def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label,
-        dist_type='eucledian', cross_valid=True, mux=None, stdx=None, do_impute=False, subset=[]):
+def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, dist_type='eucledian', cross_valid=True, mux=None, stdx=None, do_impute=False, subset=[]):
     if isinstance(feature_headers, list):
         feature_headers = np.array(feature_headers)
     header_vital_ix = np.array([h.startswith('Vital') for h in feature_headers])
@@ -262,14 +260,68 @@ def autoencoder_impute(x, bin_ix, hidden_nodes=100):
     xfinal[:,non_zero_ix] = xout
     return xfinal
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_model=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
-# def train_regression_model_for_bmi(data_dic, data_dic_mom, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
+def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
 
-    x1, y1, y1label, feature_headers, mrns = build_features_temporal.call_build_function(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
-    # x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic, data_dic_mom, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
+    """
+    Train regression model for predicting obesity outcome
+    #### PARAMETERS ####
+    For the below features if not using set value to {}
+    data_dic: data dictionary of newborns with each child's data as value for some provided key
+    data_dic_mom: data dictionary of maternal data at birth with child mrn as key and data as value
+    data_dic_hist_moms: historical maternal data dictionary with maternal mrn as the key and data as value
+    lat_lon_dic: geocoded data dictionary of maternal addresses
+    env_dic: aggregated census data
+    x1: data array
+    y1: data to be predicted
+    y1label: obesity label for each child
+    feature_headers: list of features that matches the column space of x1
+    mrns: list of mrns that matches that corresponds to x1
+
+    NOTE: the following four parameters must have matching values for creation of any precreated data sets (x1, y1, y1label, feature_headers, and mrns)
+    agex_low: lower bound on child age a prediction should be made from
+    agex_high: upper bound on child age a prediction should be made from
+    months_from: lower bound on child age for prediction
+    months_to: upper bound on child age for prediction
+
+    modelType: default 'lasso'
+        'lasso' - sklearn.linear_model.Lasso
+        'mlp' - sklearn.neural_network.MLPRegressor
+        'randomforest' -  sklearn.ensemble.RandomForestRegressor
+        'temporalCNN' - cnn -- NOT IMPLEMENTED
+        'gradientboost' - sklearn.ensemble.GradientBoostingRegressor
+        'lars' - sklearn.linear_model
+    percentile: default False; filter to ensure certain types of features exist for each data point
+    filterSTR: default ['Gender:1']; filter specific features to have vaules greater than 'filterSTRThresh' for each filterSTR
+    filterSTRThresh: default [0.5]; filter out data points with values less than the provided amount for each filterSTR feature
+    variablesubset: default []; use only specified list of feature(s) (can be exact match or feature category)
+    variable_exclude: not used
+    num_clusters: default 16; number of kmeans clusters to use for timeseries data
+    num_iters: default 100; number of iterations for kmeans clusters for timeseries data
+    dist_type: default 'euclidean'; distance metric for kmeans clusters for timeseries data
+    corr_vars_exclude: default ['Vital']; features to exclude from correlation results
+    return_data_for_error_analysis: default False; return last trained model with data to analyze model errors
+    return_data: default False; return X, y, y_label, feature_headers, and mrns created in the data creation phase
+        NOTE: this is not the imputed, normalized, binarized, etc. data. 'feature_headers' still returned otherwise.
+    return_data_transformed: default False; if True and return_data==True the transformed data will be returned in place of the original, unaltered data set.
+    do_impute: default 'True'; impute missing data
+    mrnForFilter: default []; filter data by mrn values
+    add_time: default False; use timeseries analyses
+    bin_ix: default []; list of binary features - will be determined if none provided
+    do_normalize: default True; normalize the data
+    binarize_diagnosis: default True: binarize any diagnosis features that are not already binary
+    subset: default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]); used to determine timeseries subset
+    """
+
+    if any([len(x)==0 for x in (x1,y1,y1label,feature_headers,mrns)]):
+        print('At least one required data not provided out of x1, y1, y1label, feature_headers, or mrns.')
+        print('Creating data from data dictionaries')
+        x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
+        original_data = (x1, y1, y1label, feature_headers, mrns)
+    else:
+        print('Using prepared raw data')
 
     if binarize_diagnosis:
-        bin_ix = np.array([(h.startswith('Diagnosis:') or h.startswith('Maternal Diagnosis:') or h.startswith('Newborn Diagnosis:') or h.startswith('Maternal Diagnosis History')) or h.startswith('Maternal Procedure History') for h in feature_headers])
+        bin_ix = np.array([(h.startswith('Diagnosis:') or h.startswith('Maternal Diagnosis:') or h.startswith('Newborn Diagnosis:')) for h in feature_headers])
         print(bin_ix.sum(), 'features are binary')
         x1[:,bin_ix] = (x1[:,bin_ix] > 0) * 1.0
 
@@ -328,14 +380,21 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
         r2test_ste = (1.96/np.sqrt(iters)) * r2testlist.std()
 
         if return_data_for_error_analysis == True:
+            print('->AUC test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(test_auc_mean, test_auc_mean - test_auc_mean_ste, test_auc_mean + test_auc_mean_ste))
+            print('->Explained Variance (R2) test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(r2test_mean, r2test_mean - r2test_ste,  r2test_mean + r2test_ste))
             print('lets analyse this')
             return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest, mrns)
-
     else:
         (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest) = train_regression(x2, y2, y2label, percentile, modelType, feature_headers, mrnx)
         model_weights_conf_term = np.zeros((x2.shape[1]), dtype=float)
         test_auc_mean = auc_test; r2test_mean= r2test;
         test_auc_mean_ste = 0; r2test_ste=0
+
+        print('->AUC test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(test_auc_mean, test_auc_mean - test_auc_mean_ste, test_auc_mean + test_auc_mean_ste))
+        print('->Explained Variance (R2) test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(r2test_mean, r2test_mean - r2test_ste,  r2test_mean + r2test_ste))
+        if return_data_for_error_analysis == True:
+            print('lets analyse this')
+            return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest, mrns)
 
     if modelType == 'mlp':
         print ('you need to implement gradient to get top weights. ')
@@ -373,11 +432,11 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
         fn = ((ytestlabel > 0) & (ytestpred.ravel() <= t)).sum()*1.0
         fp = ((ytestlabel == 0) & (ytestpred.ravel() > t)).sum()*1.0
 
-        sens = tp / (tp + fn)
-        spec = tn / (tn + fp)
-        ppv = tp / (tp + fp)
-        acc = (tp + tn) / (tp + tn + fp + fn)
-        f1 = 2*tp / (2*tp + fp + fn)
+        sens = tp / (tp + fn) if (tp + fn) != 0 else 0.0
+        spec = tn / (tn + fp) if (tn + fp) != 0 else 0.0
+        ppv = tp / (tp + fp) if (tp + fp) != 0 else 0.0
+        acc = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) != 0 else 0.0
+        f1 = 2*tp / (2*tp + fp + fn) if (2*tp + fp + fn) != 0 else 0.0
 
         report_metrics += '@threshold:{0:4.3f}, sens:{1:4.3f}, spec:{2:4.3f}, ppv:{3:4.3f}, acc:{4:4.3f}, f1:{5:4.3f} total+:{6:4.3f}\n'.format(t, sens, spec, ppv, acc, f1, tp+fp)
         prec_list.append(ppv)
@@ -385,11 +444,11 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
         spec_list.append(spec)
 
     print('total variables', x2.sum(axis=0).shape, ' and total subjects:', x2.shape[0])
-    print('->AUC test: {0:4.3f} [{1:4.3f} {2:4.3f}]'.format(test_auc_mean, test_auc_mean - test_auc_mean_ste, test_auc_mean + test_auc_mean_ste))
-    print('->Explained Variance (R2) test: {0:4.3f} [{1:4.3f} {2:4.3f}]'.format(r2test_mean, r2test_mean - r2test_ste,  r2test_mean + r2test_ste))
+    print('->AUC test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(test_auc_mean, test_auc_mean - test_auc_mean_ste, test_auc_mean + test_auc_mean_ste))
+    print('->Explained Variance (R2) test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(r2test_mean, r2test_mean - r2test_ste,  r2test_mean + r2test_ste))
     print(report_metrics)
 
-    occurances = (x2 != 0).sum(axis=0)[sorted_ix]
+    occurences = (x2 != 0).sum(axis=0)[sorted_ix]
     zip_weights = {}
     sig_headers = []
     feature_categories = {}
@@ -423,145 +482,18 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
         if (low_OR > 1 or high_OR < 1): #or (weights[i]+terms_sorted[i]) < 0 or (weights[i]-terms_sorted[i]) > 0
             sig_headers.append(factors[i])
             star = '*'
-        print("{8} {3} | coef {0:4.3f} [{1:4.3f} {2:4.3f}] | OR_adj {9:4.3f} [{10:4.3f} {11:4.3f}] | occ: {4} | OR_unadj: {5:4.3f} [{6:4.3f} {7:4.3f}] | indivs AUC:{12:4.3f}".format(weights[i], weights[i]-terms_sorted[i], weights[i]+terms_sorted[i], factors[i], occurances[i], oratio, low_OR, high_OR, star, np.exp(weights[i]), np.exp(weights[i]-terms_sorted[i]), np.exp(weights[i]+terms_sorted[i]), feature_auc_indiv))
+        print("{8} {3} | coef {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}] | OR_adj {9:4.3f} [{10:4.3f} {11:4.3f}] | occ: {4} | OR_unadj: {5:4.3f} [{6:4.3f} {7:4.3f}] | indivs AUC:{12:4.3f}".format(weights[i], weights[i]-terms_sorted[i], weights[i]+terms_sorted[i], factors[i], occurences[i], oratio, low_OR, high_OR, star, np.exp(weights[i]), np.exp(weights[i]-terms_sorted[i]), np.exp(weights[i]+terms_sorted[i]), feature_auc_indiv))
         print(corr_string)
 
     for k in feature_categories:
         print (k, ":", feature_categories[k])
-    return (model, filterSTR, sig_headers,  centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
 
-def train_regression_model_for_bmi_clean(X, y, ylabel, feature_headers, mrns, modelType, percentile, return_data_for_error_analysis=False, filterSTR=['Gender:1'], corr_vars_exclude=['Vital']): #filterSTR='Gender:0 male'
-    """
-    To be run with cleaned data (testing maternal EHR data).
-    """
-    corr_headers = np.array(feature_headers)
-    corr_matrix = np.corrcoef(X.transpose())
-    corr_headers_filtered, corr_matrix_filtered, ix_corr_headers = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
-    print('corr matrix is filtered to size', corr_matrix_filtered.shape)
-
-    if modelType == 'lasso' or modelType == 'randomforest' or modelType == 'gradientboost' or modelType == 'lars':
-        iters = 10
-        model_weights_array = np.zeros((iters, X.shape[1]), dtype=float)
-        auc_test_list=np.zeros((iters), dtype=float); r2testlist = np.zeros((iters), dtype=float);
-        for iteration in range(0, iters):
-            randix = list(range(0, X.shape[0]))
-            random.shuffle(randix)
-            randix = randix[0:int(len(randix)*0.9)]
-            datax = X[randix,:]; datay=y[randix]; dataylabel = ylabel[randix]; mrnx = mrns[randix]
-            (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest) = train_regression(datax, datay, dataylabel, percentile, modelType, feature_headers, mrnx)
-            model_weights_array[iteration, :] = model.coef_ if ((modelType == 'lasso') or (modelType == 'lars')) else model.feature_importances_
-            auc_test_list[iteration] = auc_test; r2testlist[iteration] = r2test
-
-        model_weights = model_weights_array.mean(axis=0)
-        model_weights_std = model_weights_array.std(axis=0)
-        model_weights_conf_term = (1.96/np.sqrt(iters)) * model_weights_std
-        test_auc_mean = auc_test_list.mean()
-        test_auc_mean_ste = (1.96/np.sqrt(iters)) * auc_test_list.std()
-        r2test_mean = r2testlist.mean()
-        r2test_ste = (1.96/np.sqrt(iters)) * r2testlist.std()
-
-        if return_data_for_error_analysis == True:
-            print('lets analyse this')
-            return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest, mrns)
-
+    if return_data and return_data_transformed:
+        return (model, x2, y1, y1label, feature_headers, mrns, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
+    elif return_data and not return_data_transformed:
+        return (model, original_data[0], original_data[1], original_data[2], original_data[3], original_data[4], filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
     else:
-        (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest) = train_regression(X, y, ylabel, percentile, modelType, feature_headers, mrnx)
-        model_weights_conf_term = np.zeros((X.shape[1]), dtype=float)
-        test_auc_mean = auc_test; r2test_mean= r2test;
-        test_auc_mean_ste = 0; r2test_ste=0
-
-    if modelType == 'mlp':
-        print ('you need to implement gradient to get top weights. ')
-        return (filterSTR, [])
-
-    sorted_ix = np.argsort(-1* abs(model_weights))
-    weights = model_weights[sorted_ix]
-    terms_sorted = model_weights_conf_term[sorted_ix]
-
-    factors = np.array(feature_headers)[sorted_ix]
-    X_reordered = X[:,sorted_ix]
-    xtest_reordered = xtest[:, sorted_ix]
-
-    ytestpred = model.predict(xtest)
-    fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, ytestpred)
-    operating_Thresholds = []
-    operating_levels = [0, 0.0001, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-    ix_level = 0
-
-    for ix, thr in enumerate(thresholds):
-        if fpr[ix] >= operating_levels[ix_level]:
-            operating_Thresholds.append(thr)
-            ix_level += 1
-            if ix_level == len(operating_levels):
-                break
-
-    operating_Thresholds = thresholds
-    report_metrics = 'Test set metrics:\n'
-    prec_list = []
-    recall_list = []
-    spec_list = []
-    for t in operating_Thresholds:
-        tp = ((ytestlabel > 0) & (ytestpred.ravel() > t)).sum()*1.0
-        tn = ((ytestlabel == 0) & (ytestpred.ravel() <= t)).sum()*1.0
-        fn = ((ytestlabel > 0) & (ytestpred.ravel() <= t)).sum()*1.0
-        fp = ((ytestlabel == 0) & (ytestpred.ravel() > t)).sum()*1.0
-
-        sens = tp / (tp + fn)
-        spec = tn / (tn + fp)
-        ppv = tp / (tp + fp)
-        acc = (tp + tn) / (tp + tn + fp + fn)
-        f1 = 2*tp / (2*tp + fp + fn)
-
-        report_metrics += '@threshold:{0:4.3f}, sens:{1:4.3f}, spec:{2:4.3f}, ppv:{3:4.3f}, acc:{4:4.3f}, f1:{5:4.3f} total+:{6:4.3f}\n'.format(t, sens, spec, ppv, acc, f1, tp+fp)
-        prec_list.append(ppv)
-        recall_list.append(sens)
-        spec_list.append(spec)
-
-    print('total variables', X.sum(axis=0).shape, ' and total subjects:', X.shape[0])
-    print('->AUC test: {0:4.3f} [{1:4.3f} {2:4.3f}]'.format(test_auc_mean, test_auc_mean - test_auc_mean_ste, test_auc_mean + test_auc_mean_ste))
-    print('->Explained Variance (R2) test: {0:4.3f} [{1:4.3f} {2:4.3f}]'.format(r2test_mean, r2test_mean - r2test_ste,  r2test_mean + r2test_ste))
-    print(report_metrics)
-
-    occurances = (X != 0).sum(axis=0)[sorted_ix]
-    zip_weights = {}
-    sig_headers = []
-    feature_categories = {}
-    for i in range(0, (abs(model_weights)>0).sum()):
-        fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, xtest_reordered[:,i].ravel())
-        feature_auc_indiv = metrics.auc(fpr, tpr)
-        corrs = corr_matrix_filtered[sorted_ix[i],:].ravel()
-        top_corr_ix = np.argsort(-1*abs(corrs))
-        corr_string = 'Correlated most with:\n'+'    '.join( [str(corr_headers_filtered[top_corr_ix[j]])+ ':' + "{0:4.3f}\n".format(corrs[top_corr_ix[j]]) for j in range(0,10)]  )
-
-        tp = ((ylabel > 0) & (X_reordered[:,i].ravel() > 0)).sum()*1.0
-        tn = ((ylabel == 0) & (X_reordered[:,i].ravel() <= 0)).sum()*1.0
-        fn = ((ylabel > 0) & (X_reordered[:,i].ravel() <= 0)).sum()*1.0
-        fp = ((ylabel == 0) & (X_reordered[:,i].ravel() > 0)).sum()*1.0
-
-        if fp*fn*tp*tn == 0:
-            oratio = np.nan
-            low_OR = np.nan
-            high_OR = np.nan
-        else:
-            oratio = tp*tn/(fp*fn)
-            se = np.sqrt(1/tp + 1/fp + 1/tn + 1/fn)
-            low_OR = np.exp(np.log(oratio) - 1.96 * se)
-            high_OR = np.exp(np.log(oratio) + 1.96 * se)
-        try:
-            feature_categories[factors[i].split(':')[0]] += weights[i]
-        except:
-            feature_categories[factors[i].split(':')[0]] = weights[i]
-
-        star = ' '
-        if (low_OR > 1 or high_OR < 1): #or (weights[i]+terms_sorted[i]) < 0 or (weights[i]-terms_sorted[i]) > 0
-            sig_headers.append(factors[i])
-            star = '*'
-        print("{8} {3} | coef {0:4.3f} [{1:4.3f} {2:4.3f}] | OR_adj {9:4.3f} [{10:4.3f} {11:4.3f}] | occ: {4} | OR_unadj: {5:4.3f} [{6:4.3f} {7:4.3f}] | indivs AUC:{12:4.3f}".format(weights[i], weights[i]-terms_sorted[i], weights[i]+terms_sorted[i], factors[i], occurances[i], oratio, low_OR, high_OR, star, np.exp(weights[i]), np.exp(weights[i]-terms_sorted[i]), np.exp(weights[i]+terms_sorted[i]), feature_auc_indiv))
-        print(corr_string)
-
-    for k in feature_categories:
-        print (k, ":", feature_categories[k])
-    return (filterSTR, sig_headers, mrns, prec_list, recall_list, spec_list)
+        return (feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
 
 def analyse_errors(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest):
     pred = model.predict(xtrain)
@@ -611,6 +543,57 @@ def train_chain(data_dic, data_dic_mom, agex_low, agex_high, months_from, months
                 return
             train_chain(data_dic, data_dic_mom, agex_low, agex_high, months_from, months_to, modelType, percentile, flist_copy)
         return
+
+def prec_rec_curve(recall_list, precision_list, titles_list, title, show=True, save=False):
+    """
+    Precision Recall Curves for multiple analyses to compare results
+    #### PARAMETERS ####
+    recall_list: list of lists of recall values
+    precision_list: list of lists of precision values
+    titles_list: list of legend labels for each model
+    title: title of plot and filename if saving
+    save: binary to indicate if plot should be saved
+    """
+    plt.figure(figsize=(10,10))
+    for ix in range(len(precision_list)):
+        plt.plot(recall_list[ix], precision_list[ix], label=titles_list[ix])
+    plt.xlabel('Recall (Sensitivity)')
+    plt.ylabel('Precision (PPV)')
+    plt.legend(fontsize = 8)
+    plt.axis('equal')
+    plt.title(title)
+    plt.grid()
+    if save:
+        plt.savefig(title+'.png', dpi=300)
+    if show:
+        plt.show()
+    return
+
+def ROC_curve(recall_list, specificity_list, titles_list, title, show=True, save=False):
+    """
+    Receiver Operator Curves for multiple analyses to compare results
+    #### PARAMETERS ####
+    recall_list: list of lists of recall values
+    specificity_list: list of lists of specificity values
+    titles_list: list of legend labels for each model
+    title: title of plot and filename if saving
+    save: binary to indicate if plot should be saved
+    """
+    plt.figure(figsize=(10,10))
+    for ix in range(len(prec_total)):
+        plt.plot(1- np.array(spec_total[ix]), np.array(recall_total[ix]), label=titles_total[ix])
+
+    plt.legend(fontsize = 8)
+    plt.xlabel('1 - Specificity')
+    plt.ylabel('Sensitivity')
+    plt.axis('equal')
+    plt.title(title)
+    plt.grid()
+    if save:
+        plt.savefig(title+'.png', dpi=300)
+    if show:
+        plt.show()
+    return
 
 if __name__=='__main__':
     d1 = pickle.load(open('patientdata_20170823.pkl', 'rb'))
