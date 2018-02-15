@@ -1,5 +1,6 @@
 import config as config_file
 import pandas as pd
+import zscore
 import pickle
 import re
 import matplotlib.pylab as plt
@@ -148,6 +149,59 @@ def build_features_vitalAverage(patient_data, maternal_data, maternal_hist_data,
     res = res/res_cnt
     return res
 
+def build_features_vitalGain_0_3(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 1, 3)
+
+def build_features_vitalGain_1_5(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 1, 3, 5)
+
+def build_features_vitalGain_3_7(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 3, 5, 7)
+
+def build_features_vitalGain_5_10(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 5, 7, 10)
+
+def build_features_vitalGain_7_13(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 7, 10, 13)
+
+def build_features_vitalGain_10_16(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 10, 13, 16)
+
+def build_features_vitalGain_13_19(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 13, 16, 19)
+
+def build_features_vitalGain_16_24(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 16, 19, 24)
+
+def build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, startmonth, midmonth, endmonth):
+    res1 = np.zeros(len(feature_headers), dtype=float)
+    res_cnt1 = np.zeros(len(feature_headers), dtype=float)
+    res2 = np.zeros(len(feature_headers), dtype=float)
+    res_cnt2 = np.zeros(len(feature_headers), dtype=float)
+    bdate = patient_data['bdate']
+    for code in patient_data['vitals']:
+        for (edate, vitalval) in patient_data['vitals'][code]:
+            if edate >= reference_date_end or edate <= reference_date_start:
+                continue
+            try:
+                age_at_vital = (edate - bdate).days / 30
+                if ((age_at_vital < startmonth) or (age_at_vital > endmonth)):
+                    continue
+                if (age_at_vital > startmonth) and (age_at_vital < midmonth):
+                    res1[feature_index[code.strip()]] += vitalval
+                    res_cnt1[feature_index[code.strip()]] += 1
+                elif (age_at_vital > midmonth) and (age_at_vital < endmonth):
+                    res2[feature_index[code.strip()]] += vitalval
+                    res_cnt2[feature_index[code.strip()]] += 1
+            except:
+                pass
+    res_cnt1[(res_cnt1==0)] = 1.0
+    res1 = res1/res_cnt1
+    res_cnt2[(res_cnt2==0)] = 1.0
+    res2 = res2/res_cnt2
+    res = res2-res1
+    return res
+
 def build_features_ethn(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     code = patient_data['ethnicity']
@@ -292,7 +346,7 @@ def build_features_mat_agedel(patient_data, maternal_data, maternal_hist_data, l
 
 
 ##### FUNCTIONS TO BUILD FEATURES FOR HISTORICAL MATERNAL DATA ####
-def mother_child_map(patient_data, maternal_data, maternal_hist_data):
+def mother_child_map(patient_data, maternal_data, maternal_hist_data):  #ROB
     child_mrn = set([patient_data[k]['mrn'] for k in patient_data.keys()]) & set(maternal_data.keys())
     mom_mrn = set(maternal_hist_data.keys()) & set([maternal_data[k]['mom_mrn'] for k in maternal_data.keys()])
     keys = [k for k in patient_data.keys() if patient_data[k]['mrn'] in child_mrn]
@@ -304,7 +358,7 @@ def mother_child_map(patient_data, maternal_data, maternal_hist_data):
             mother_child_dic[maternal_data[patient_data[k]['mrn']]['mom_mrn']] = {patient_data[k]['mrn']: patient_data[k]['bdate']}
     return mother_child_dic
 
-def build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, output_type, measurement, period):
+def build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, output_type, measurement, period):  #ROB
     """
     Function to process maternal doctor visits.
     #### PARAMETERS ####
@@ -354,14 +408,6 @@ def build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_dat
                                 res_cnt[feature_index[code.strip()]] += 1.
                             except:
                                 pass
-                                # try:
-                                #     res[feature_index[code.strip()]] += float(vital_val[1].split(':')[1])
-                                #     res_cnt[feature_index[code.strip()]] += 1
-                                # except:
-                                #     print (re.findall(r'(\d\d+)', vital_val[1]))
-                                #     if len(re.findall(r'(\d\d+)', vital_val[1])) >= 1:
-                                #         res[feature_index[code.strip()]] += float(re.findall(r'(\d\d+)', vital_val[1])[0])
-                                #         res_cnt[feature_index[code.strip()]] += 1
                 elif period == 'post':
                     if vital_date > bdate and not all([((other_bdate - vital_date).days / 7 >= 0) and ((other_bdate - vital_date).days / 7 <= 40) for (other_mrn,other_bdate) in mother_child_data[mat_mrn].items() if other_mrn != patient_data['mrn']]):
                         if measurement == 'diags':
@@ -380,14 +426,6 @@ def build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_dat
                                 res_cnt[feature_index[code.strip()]] += 1.
                             except:
                                 pass
-                                # try:
-                                #     res[feature_index[code.strip()]] += float(vital_val[1].split(':')[1])
-                                #     res_cnt[feature_index[code.strip()]] += 1
-                                # except:
-                                #     print (re.findall(r'(\d\d+)', vital_val[1]))
-                                #     if len(re.findall(r'(\d\d+)', vital_val[1])) >= 1:
-                                #         res[feature_index[code.strip()]] += float(re.findall(r'(\d\d+)', vital_val[1])[0])
-                                #         res_cnt[feature_index[code.strip()]] += 1
                 elif period == 'other':
                     if any([((other_bdate - vital_date).days / 7 >= 0) and ((other_bdate - vital_date).days / 7 <= 40) for (other_mrn,other_bdate) in mother_child_data[mat_mrn].items() if other_mrn != patient_data['mrn']]):
                         if measurement == 'diags':
@@ -406,14 +444,6 @@ def build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_dat
                                 res_cnt[feature_index[code.strip()]] += 1.
                             except:
                                 pass
-                                # try:
-                                #     res[feature_index[code.strip()]] += float(vital_val[1].split(':')[1])
-                                #     res_cnt[feature_index[code.strip()]] += 1
-                                # except:
-                                #     print (re.findall(r'(\d\d+)', vital_val[1]))
-                                #     if len(re.findall(r'(\d\d+)', vital_val[1])) >= 1:
-                                #         res[feature_index[code.strip()]] += float(re.findall(r'(\d\d+)', vital_val[1])[0])
-                                #         res_cnt[feature_index[code.strip()]] += 1
                 elif period == 'trimester1':
                     if 40 - ((bdate-vital_date).days / 7) < 14 and 40 - ((bdate-vital_date).days / 7) >= 0:
                         if measurement == 'diags':
@@ -432,14 +462,6 @@ def build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_dat
                                 res_cnt[feature_index[code.strip()]] += 1.
                             except:
                                 pass
-                                # try:
-                                #     res[feature_index[code.strip()]] += float(vital_val[1].split(':')[1])
-                                #     res_cnt[feature_index[code.strip()]] += 1
-                                # except:
-                                #     print (re.findall(r'(\d\d+)', vital_val[1]))
-                                #     if len(re.findall(r'(\d\d+)', vital_val[1])) >= 1:
-                                #         res[feature_index[code.strip()]] += float(re.findall(r'(\d\d+)', vital_val[1])[0])
-                                #         res_cnt[feature_index[code.strip()]] += 1
                 elif period == 'trimester2':
                     if 40 - ((bdate-vital_date).days / 7) < 27 and 40 - ((bdate-vital_date).days / 7) >= 14:
                         if measurement == 'diags':
@@ -458,14 +480,6 @@ def build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_dat
                                 res_cnt[feature_index[code.strip()]] += 1.
                             except:
                                 pass
-                                # try:
-                                #     res[feature_index[code.strip()]] += float(vital_val[1].split(':')[1])
-                                #     res_cnt[feature_index[code.strip()]] += 1
-                                # except:
-                                #     print (re.findall(r'(\d\d+)', vital_val[1]))
-                                #     if len(re.findall(r'(\d\d+)', vital_val[1])) >= 1:
-                                #         res[feature_index[code.strip()]] += float(re.findall(r'(\d\d+)', vital_val[1])[0])
-                                #         res_cnt[feature_index[code.strip()]] += 1
                 elif period == 'trimester3':
                     if 40 - ((bdate-vital_date).days / 7) <= 40 and 40 - ((bdate-vital_date).days / 7) >= 27:
                         if measurement == 'diags':
@@ -484,15 +498,6 @@ def build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_dat
                                 res_cnt[feature_index[code.strip()]] += 1.
                             except:
                                 pass
-                                # try:
-                                #     res[feature_index[code.strip()]] += float(vital_val[1].split(':')[1])
-                                #     res_cnt[feature_index[code.strip()]] += 1
-                                # except:
-                                #     print (re.findall(r'(\d\d+)', vital_val[1]))
-                                #     if len(re.findall(r'(\d\d+)', vital_val[1])) >= 1:
-                                #         res[feature_index[code.strip()]] += float(re.findall(r'(\d\d+)', vital_val[1])[0])
-                                #         res_cnt[feature_index[code.strip()]] += 1
-
         if output_type == 'count':
             return res
         elif output_type == 'average':
@@ -500,76 +505,76 @@ def build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_dat
             res = res/res_cnt
             return res
 
-def build_features_mat_hist_vitalsAverage_prePregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_vitalsAverage_prePregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'vitals', 'pre')
 
-def build_features_mat_hist_vitalsAverage_firstTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_vitalsAverage_firstTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'vitals', 'trimester1')
 
-def build_features_mat_hist_vitalsAverage_secTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_vitalsAverage_secTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'vitals', 'trimester2')
 
-def build_features_mat_hist_vitalsAverage_thirdTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_vitalsAverage_thirdTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'vitals', 'trimester3')
 
-def build_features_mat_hist_vitalsAverage_postPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_vitalsAverage_postPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'vitals', 'post')
 
-def build_features_mat_hist_vitalsAverage_otherPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_vitalsAverage_otherPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'vitals', 'other')
 
-def build_features_mat_hist_labsAverage_prePregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_labsAverage_prePregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'labs', 'pre')
 
-def build_features_mat_hist_labsAverage_firstTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_labsAverage_firstTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'labs', 'trimester1')
 
-def build_features_mat_hist_labsAverage_secTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_labsAverage_secTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'labs', 'trimester2')
 
-def build_features_mat_hist_labsAverage_thrirdTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_labsAverage_thrirdTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'labs', 'trimester3')
 
-def build_features_mat_hist_labsAverage_postPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_labsAverage_postPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'labs', 'post')
 
-def build_features_mat_hist_labsAverage_otherPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_labsAverage_otherPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'average', 'labs', 'other')
 
-def build_features_mat_hist_proceduresCount_prePregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_proceduresCount_prePregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'procedures', 'pre')
 
-def build_features_mat_hist_proceduresCount_firstTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_proceduresCount_firstTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'procedures', 'trimester1')
 
-def build_features_mat_hist_proceduresCount_secTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_proceduresCount_secTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'procedures', 'trimester2')
 
-def build_features_mat_hist_proceduresCount_thrirdTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_proceduresCount_thrirdTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'procedures', 'trimester3')
 
-def build_features_mat_hist_proceduresCount_postPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_proceduresCount_postPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'procedures', 'post')
 
-def build_features_mat_hist_proceduresCount_otherPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_proceduresCount_otherPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'procedures', 'other')
 
-def build_features_mat_hist_icdCount_prePregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_icdCount_prePregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'diags', 'pre')
 
-def build_features_mat_hist_icdCount_firstTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_icdCount_firstTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'diags', 'trimester1')
 
-def build_features_mat_hist_icdCount_secTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_icdCount_secTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'diags', 'trimester2')
 
-def build_features_mat_hist_icdCount_thrirdTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_icdCount_thrirdTri(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'diags', 'trimester3')
 
-def build_features_mat_hist_icdCount_postPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_icdCount_postPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'diags', 'post')
 
-def build_features_mat_hist_icdCount_otherPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):
+def build_features_mat_hist_icdCount_otherPregnancy(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data):  #ROB
     return build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, 'count', 'diags', 'other')
 
 
@@ -811,6 +816,25 @@ def build_feature_vitallatest_index():
                 feature_index[code.strip()] = [ix]
         feature_headers.append('Vital:'+ descr)
     return feature_index, feature_headers
+
+def build_feature_vital_gains_index():
+    try:
+        codesNnames = [l.strip().decode('utf-8') for l in open(config_file.vitalsGainsList, 'rb').readlines()]
+    except:
+        codesNnames = [l.strip().decode('latin-1') for l in open(config_file.vitalsGainsList, 'rb').readlines()]
+    feature_index = {}
+    feature_headers = []
+    for (ix, codeline) in enumerate(codesNnames):
+        codes = codeline.strip().split('#')[0]
+        descr = codeline.strip().split('#')[1]
+        for code in codes.split(' | '):
+            if code in feature_index:
+                feature_index[code.strip()].append(ix)
+            else:
+                feature_index[code.strip()] = [ix]
+        feature_headers.append('Vital:'+ descr)
+    return feature_index, feature_headers
+
 def build_feature_zipcd_index():
     try:
         codesNnames = [l.strip().decode('utf-8') for l in open(config_file.zipList, 'rb').readlines()]
@@ -921,7 +945,7 @@ def build_feature_ICD_index():
     # feature_headers = ['Diagnosis:' + i for i in  (icd9 + icd10)]
     return feature_index, feature_headers
 
-def build_feature_mat_hist_labs_index():
+def build_feature_mat_hist_labs_index():  #ROB
     try:
         codesNnames = [l.strip().decode('utf-8') for l in open(config_file.BM_Labs, 'rb').readlines()]
     except:
@@ -939,7 +963,7 @@ def build_feature_mat_hist_labs_index():
         feature_headers.append('Maternal Lab History:'+ descr)
     return feature_index, feature_headers
 
-def build_feature_mat_hist_meds_index():
+def build_feature_mat_hist_meds_index():  #ROB
     try:
         medsfile = [l.strip().decode("utf-8")  for l in open(config_file.BM_Meds, 'rb').readlines()]
     except:
@@ -958,7 +982,7 @@ def build_feature_mat_hist_meds_index():
                 feature_index[med_code] = [ix]
     return feature_index, feature_headers
 
-def build_feature_mat_hist_procedures_index():
+def build_feature_mat_hist_procedures_index():  #ROB
     try:
         procsfile = [l.strip().decode("utf-8")  for l in open(config_file.BM_Procedures, 'rb').readlines()]
     except:
@@ -999,7 +1023,7 @@ def build_feature_mat_hist_icd_index():
     # feature_headers = ['Diagnosis:' + i for i in  (icd9 + icd10)]
     return feature_index, feature_headers
 
-def mother_child_map(data_dic, data_dic_moms, data_dic_hist_moms):
+def mother_child_map(data_dic, data_dic_moms, data_dic_hist_moms):  #ROB
     """
     Creates a mapping between each mother and their child/children where a match exists.
     """
@@ -1026,6 +1050,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
     feature_index_zipcd, feature_headers_zipcd = build_feature_zipcd_index()
     feature_index_census, feature_headers_census = build_feature_census_index(env_dic)
     feature_index_vitalLatest, feature_headers_vitalsLatest = build_feature_vitallatest_index()
+    feature_index_vitalGains, feature_headers_vitalsGains = build_feature_vital_gains_index()
 
     feature_index_mat_ethn, feature_headers_mat_ethn = build_feature_matethn_index()
     feature_index_mat_race, feature_headers_mat_race = build_feature_matrace_index()
@@ -1071,6 +1096,14 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         (build_features_vitalAverage_13_16, [ feature_index_vitalLatest, [h+'-avg13to16' for h in feature_headers_vitalsLatest]]),
         (build_features_vitalAverage_16_19, [ feature_index_vitalLatest, [h+'-avg16to19' for h in feature_headers_vitalsLatest]]),
         (build_features_vitalAverage_19_24, [ feature_index_vitalLatest, [h+'-avg19to24' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalGain_0_3, [ feature_index_vitalGains, [h+'-gain0to3' for h in feature_headers_vitalsGains]]),
+        (build_features_vitalGain_1_5, [ feature_index_vitalGains, [h+'-gain1to5' for h in feature_headers_vitalsGains]]),
+        (build_features_vitalGain_3_7, [ feature_index_vitalGains, [h+'-gain3to7' for h in feature_headers_vitalsGains]]),
+        (build_features_vitalGain_5_10, [ feature_index_vitalGains, [h+'-gain5to10' for h in feature_headers_vitalsGains]]),
+        (build_features_vitalGain_7_13, [ feature_index_vitalGains, [h+'-gain7to13' for h in feature_headers_vitalsGains]]),
+        (build_features_vitalGain_10_16, [ feature_index_vitalGains, [h+'-gain10to16' for h in feature_headers_vitalsGains]]),
+        (build_features_vitalGain_13_19, [ feature_index_vitalGains, [h+'-gain13to19' for h in feature_headers_vitalsGains]]),
+        (build_features_vitalGain_16_24, [ feature_index_vitalGains, [h+'-gain16to24' for h in feature_headers_vitalsGains]]),
         # environment
         (build_features_zipcd, [ feature_index_zipcd, feature_headers_zipcd]),
         (build_features_census, [ feature_index_census, feature_headers_census]),
@@ -1088,36 +1121,36 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         (build_features_mat_birthpl, [ feature_index_mat_birthpl, feature_headers_mat_birthpl]),
         (build_features_mat_agedel, [ feature_index_mat_agedeliv, feature_headers_age_deliv]),
         #historical maternal features
-        (build_features_mat_hist_vitalsAverage_prePregnancy, [feature_index_vitalLatest, [h+'-prePregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_vitalsAverage_firstTri, [feature_index_vitalLatest, [h+'-firstTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_vitalsAverage_secTri, [feature_index_vitalLatest, [h+'-secondTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_vitalsAverage_thirdTri, [feature_index_vitalLatest, [h+'-thirdTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_vitalsAverage_postPregnancy, [feature_index_vitalLatest, [h+'-postPregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_vitalsAverage_otherPregnancy, [feature_index_vitalLatest, [h+'-otherPregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_prePregnancy, [feature_index_mat_hist_labsAverage, [h+'-prePregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_firstTri, [feature_index_mat_hist_labsAverage, [h+'-firstTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_secTri, [feature_index_mat_hist_labsAverage, [h+'-secondTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_thrirdTri, [feature_index_mat_hist_labsAverage, [h+'-thirdTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_postPregnancy, [feature_index_mat_hist_labsAverage, [h+'-postPregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_otherPregnancy, [feature_index_mat_hist_labsAverage, [h+'-otherPregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_icdCount_prePregnancy, [feature_index_mat_hist_icd, [h+'-prePregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_icdCount_firstTri, [feature_index_mat_hist_icd, [h+'-firstTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_icdCount_secTri, [feature_index_mat_hist_icd, [h+'-secondTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_icdCount_thrirdTri, [feature_index_mat_hist_icd, [h+'-thirdTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_icdCount_postPregnancy, [feature_index_mat_hist_icd, [h+'-postPregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_icdCount_otherPregnancy, [feature_index_mat_hist_icd, [h+'-otherPregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_prePregnancy, [feature_index_mat_hist_procsAverage, [h+'-prePregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_firstTri, [feature_index_mat_hist_procsAverage, [h+'-firstTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_secTri, [feature_index_mat_hist_procsAverage, [h+'-secondTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_thrirdTri, [feature_index_mat_hist_procsAverage, [h+'-thirdTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_postPregnancy, [feature_index_mat_hist_procsAverage, [h+'-postPregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_otherPregnancy, [feature_index_mat_hist_procsAverage, [h+'-otherPregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic])
-        # (build_features_mat_hist_medsAverage_prePregnancy, [feature_index_mat_hist_medsAverage, [h+'-prePregnancy' for h in feature_headers_mat_hist_meds], mother_child_dic]),
-        # (build_features_mat_hist_medsAverage_firstTri, [feature_index_mat_hist_medsAverage, [h+'-firstTrimester' for h in feature_headers_mat_hist_meds], mother_child_dic]),
-        # (build_features_mat_hist_medsAverage_secTri, [feature_index_mat_hist_medsAverage, [h+'-secondTrimester' for h in feature_headers_mat_hist_meds], mother_child_dic]),
-        # (build_features_mat_hist_medsAverage_thrirdTri, [feature_index_mat_hist_medsAverage, [h+'-thirdTrimester' for h in feature_headers_mat_hist_meds], mother_child_dic]),
-        # (build_features_mat_hist_medsAverage_postPregnancy, [feature_index_mat_hist_medsAverage, [h+'-postPregnancy' for h in feature_headers_mat_hist_meds], mother_child_dic]),
-        # (build_features_mat_hist_medsAverage_otherPregnancy, [feature_index_mat_hist_medsAverage, [h+'-otherPregnancy' for h in feature_headers_mat_hist_meds], mother_child_dic])
+        (build_features_mat_hist_vitalsAverage_prePregnancy, [feature_index_vitalLatest, [h+'-prePregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),  #ROB
+        (build_features_mat_hist_vitalsAverage_firstTri, [feature_index_vitalLatest, [h+'-firstTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),  #ROB
+        (build_features_mat_hist_vitalsAverage_secTri, [feature_index_vitalLatest, [h+'-secondTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),  #ROB
+        (build_features_mat_hist_vitalsAverage_thirdTri, [feature_index_vitalLatest, [h+'-thirdTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),  #ROB
+        (build_features_mat_hist_vitalsAverage_postPregnancy, [feature_index_vitalLatest, [h+'-postPregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),  #ROB
+        (build_features_mat_hist_vitalsAverage_otherPregnancy, [feature_index_vitalLatest, [h+'-otherPregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),  #ROB
+        (build_features_mat_hist_labsAverage_prePregnancy, [feature_index_mat_hist_labsAverage, [h+'-prePregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_labsAverage_firstTri, [feature_index_mat_hist_labsAverage, [h+'-firstTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_labsAverage_secTri, [feature_index_mat_hist_labsAverage, [h+'-secondTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_labsAverage_thrirdTri, [feature_index_mat_hist_labsAverage, [h+'-thirdTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_labsAverage_postPregnancy, [feature_index_mat_hist_labsAverage, [h+'-postPregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_labsAverage_otherPregnancy, [feature_index_mat_hist_labsAverage, [h+'-otherPregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_icdCount_prePregnancy, [feature_index_mat_hist_icd, [h+'-prePregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),  #ROB
+        (build_features_mat_hist_icdCount_firstTri, [feature_index_mat_hist_icd, [h+'-firstTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),  #ROB
+        (build_features_mat_hist_icdCount_secTri, [feature_index_mat_hist_icd, [h+'-secondTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),  #ROB
+        (build_features_mat_hist_icdCount_thrirdTri, [feature_index_mat_hist_icd, [h+'-thirdTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),  #ROB
+        (build_features_mat_hist_icdCount_postPregnancy, [feature_index_mat_hist_icd, [h+'-postPregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),  #ROB
+        (build_features_mat_hist_icdCount_otherPregnancy, [feature_index_mat_hist_icd, [h+'-otherPregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),  #ROB
+        (build_features_mat_hist_proceduresCount_prePregnancy, [feature_index_mat_hist_procsAverage, [h+'-prePregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_proceduresCount_firstTri, [feature_index_mat_hist_procsAverage, [h+'-firstTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_proceduresCount_secTri, [feature_index_mat_hist_procsAverage, [h+'-secondTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_proceduresCount_thrirdTri, [feature_index_mat_hist_procsAverage, [h+'-thirdTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_proceduresCount_postPregnancy, [feature_index_mat_hist_procsAverage, [h+'-postPregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic]),  #ROB
+        (build_features_mat_hist_proceduresCount_otherPregnancy, [feature_index_mat_hist_procsAverage, [h+'-otherPregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic])  #ROB
+        # (build_features_mat_hist_medsAverage_prePregnancy, [feature_index_mat_hist_medsAverage, [h+'-prePregnancy' for h in feature_headers_mat_hist_meds], mother_child_dic]),  #ROB
+        # (build_features_mat_hist_medsAverage_firstTri, [feature_index_mat_hist_medsAverage, [h+'-firstTrimester' for h in feature_headers_mat_hist_meds], mother_child_dic]),  #ROB
+        # (build_features_mat_hist_medsAverage_secTri, [feature_index_mat_hist_medsAverage, [h+'-secondTrimester' for h in feature_headers_mat_hist_meds], mother_child_dic]),  #ROB
+        # (build_features_mat_hist_medsAverage_thrirdTri, [feature_index_mat_hist_medsAverage, [h+'-thirdTrimester' for h in feature_headers_mat_hist_meds], mother_child_dic]),  #ROB
+        # (build_features_mat_hist_medsAverage_postPregnancy, [feature_index_mat_hist_medsAverage, [h+'-postPregnancy' for h in feature_headers_mat_hist_meds], mother_child_dic]),  #ROB
+        # (build_features_mat_hist_medsAverage_otherPregnancy, [feature_index_mat_hist_medsAverage, [h+'-otherPregnancy' for h in feature_headers_mat_hist_meds], mother_child_dic])  #ROB
     ]
 
     features = np.zeros((len(data_dic.keys()), sum([len(f[1][1]) for f in funcs ]) ), dtype=float)
@@ -1185,4 +1218,18 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
                 outcomelabels[ix] = stats.mode(np.array(BMI_outcome_list)).mode[0]
                 outcome[ix] = np.array(BMI_list).mean()
 
-    return features, outcome, outcomelabels, headers, np.array(mrns)\
+    zscore_headers = ['Vital: Wt for Length Zscore-avg0to1','Vital: Wt for Length Zscore-avg1to3','Vital: Wt for Length Zscore-avg3to5','Vital: Wt for Length Zscore-avg5to7','Vital: Wt for Length Zscore-avg7to10','Vital: Wt for Length Zscore-avg10to13','Vital: Wt for Length Zscore-avg13to16','Vital: Wt for Length Zscore-avg16to19','Vital: Wt for Length Zscore-avg19to24']
+    zscore_gain_headers = ['Vital: Wt for Length Zscore-gain0to3','Vital: Wt for Length Zscore-gain1to5','Vital: Wt for Length Zscore-gain3to7','Vital: Wt for Length Zscore-gain5to10','Vital: Wt for Length Zscore-gain7to13','Vital: Wt for Length Zscore-gain10to16','Vital: Wt for Length Zscore-gain13to19','Vital: Wt for Length Zscore-gain16to24']
+    headers += zscore_headers + zscore_gain_headers
+
+    zscores = np.zeros((len(mrns),len(zscore_headers)))
+    zscores_gain = np.zeros((len(mrns),len(zscore_gain_headers)))
+    for ix, age in enumerate(['-avg0to1','-avg1to3','-avg3to5','-avg5to7','-avg7to10','-avg10to13','-avg13to16','-avg16to19','-avg19to24']):
+        wts = features[:,headers.index('Vital: Wt'+age)] * 0.4535924
+        hts = features[:,headers.index('Vital: Ht'+age)] * 2.54
+        genders = features[:,headers.index('Gender:1 female')]
+        zscores[:,ix] = zscore.zscore_wfl(genders, hts, wts)
+    for ix in range(len(zscore_gain_headers)):
+        zscores_gain[:,ix] = zscores[:,ix+1] - zscores[:,ix]
+    features = np.hstack((features, zscores, zscores_gain))
+    return features, outcome, outcomelabels, headers, np.array(mrns)
