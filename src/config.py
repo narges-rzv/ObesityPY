@@ -41,6 +41,8 @@ ethnicityList = '../auxdata/ethnicityList.txt'
 raceList = '../auxdata/raceList.txt'
 zipList = '../auxdata/zipList.txt'
 vitalsList = '../auxdata/vitals_subset.txt'
+vitalsGainsList = '../auxdata/vitals_subset_gains.txt'
+vitalsZScoreList = '../auxdata/vitals_wt_bmi_zscore.txt'
 labslist = '../auxdata/labs.txt'
 medslist = '../auxdata/meds.txt'
 
@@ -48,6 +50,8 @@ CDC_BMI_Ref = '../auxdata/CDC_BMIs.txt'
 CDC_BMI_95 = '../auxdata/CDC_BMI_95.txt'
 wght4leng_girl = '../auxdata/wfh_girls_p_exp.txt'
 wght4leng_boy = '../auxdata/wfh_boys_p_exp.txt'
+
+timeList = '../auxdata/time_list.txt'  #ROB
 
 #maternal info
 input_csv_mothers = ['']
@@ -78,3 +82,7 @@ BM_Language = '../auxdata/BM_Language.txt'
 BM_Prim_Ins = '../auxdata/BM_Prim_Ins.txt'
 BM_Second_Ins = '../auxdata/BM_Second_Ins.txt'
 
+# historical maternal info
+BM_Labs = '../auxdata/BM_Labs.txt'  #ROB
+# BM_Meds = '../auxdata/BM_Meds.txt'  #ROB
+BM_Procedures = '../auxdata/BM_Procedures.txt'  #ROB
