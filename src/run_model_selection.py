@@ -3,6 +3,7 @@ import train
 import build_features
 import numpy as np
 import time
+import os
 
 #Get the data
 d1 = pickle.load(open('../python objects/patientdata_20170823.pkl', 'rb'))
@@ -12,19 +13,20 @@ env_dic= pickle.load(open('../python objects/census_data_20170920.pkl', 'rb'))
 d1mom_hist = pickle.load(open('../../data/full_lutheran_mother_data.pkl', 'rb'))
 
 #Create the overall data sets
-x1_no_maternal,y1,y1label,feature_headers,mrns = build_features.call_build_function(d1, d1mom, d1mom_hist, lat_lon_dic, env_dic, 4.5, 5.5,  0, 24, False)
+x1_no_maternal,y1,y1label,feature_headers,mrns = build_features.call_build_function(d1, d1mom, {}, lat_lon_dic, env_dic, 4.5, 5.5,  0, 24, False)
 x1_maternal,y1,y1label,feature_headers,mrns = build_features.call_build_function(d1, d1mom, d1mom_hist, lat_lon_dic, env_dic, 4.5, 5.5,  0, 24, False)
 
 timestr = time.strftime("%Y%m%d-%H%M%S")
+newdir='outputs_'+timestr
+os.mkdir(newdir)
 # pickle.dump(x1_no_maternal, open('x_no_maternal_'+timestr+'.pkl', 'wb'))
 # pickle.dump(x1_maternal, open('x_maternal_'+timestr+'.pkl', 'wb'))
-np.savetxt('x_no_maternal_'+timestr+'.txt', x1_no_maternal, delimiter='\t')
-np.savetxt('x_w_maternal_'+timestr+'.txt', x1_maternal, delimiter='\t')
-pickle.dump(y1, open('y_'+timestr+'.pkl', 'wb'))
-pickle.dump(y1label, open('y_label_'+timestr+'.pkl', 'wb'))
-pickle.dump(feature_headers, open('feature_headers_'+timestr+'.pkl', 'wb'))
-pickle.dump(mrns, open('mrns_'+timestr+'.pkl', 'wb'))
-
+np.save(newdir+'/x_no_maternal.npy', x1_no_maternal)
+np.save(newdir+'/x_w_maternal.npy', x1_maternal)
+pickle.dump(y1, open(newdir+'/y.pkl', 'wb'))
+pickle.dump(y1label, open(newdir+'/y_label.pkl', 'wb'))
+pickle.dump(feature_headers, open(newdir+'/feature_headers.pkl', 'wb'))
+pickle.dump(mrns, open(newdir+'/mrns.pkl', 'wb'))
 
 #Run all the models
 prec_total = []
@@ -153,13 +155,13 @@ for modeltype_ix in ['lasso','randomforest']:
         r2_list.append([r2test_mean, r2test_mean - r2test_ste, r2test_mean + r2test_ste])
 
 # Save the outputs
-pickle.dump(titles_total, open('titles_total_'+timestr+'.pkl', 'wb'))
-pickle.dump(model_list, open('model_list_'+timestr+'.pkl', 'wb'))
-pickle.dump(prec_total, open('prec_total_'+timestr+'.pkl', 'wb'))
-pickle.dump(recall_total, open('recall_total_'+timestr+'.pkl', 'wb'))
-pickle.dump(spec_total, open('spec_total_'+timestr+'.pkl', 'wb'))
-pickle.dump(auc_list, open('auc_list_'+timestr+'.pkl', 'wb'))
-pickle.dump(r2_list, open('r2_list_'+timestr+'.pkl', 'wb'))
+pickle.dump(titles_total, open(newdir+'/titles_total_.pkl', 'wb'))
+pickle.dump(model_list, open(newdir+'/model_list.pkl', 'wb'))
+pickle.dump(prec_total, open(newdir+'/prec_total.pkl', 'wb'))
+pickle.dump(recall_total, open(newdir+'/recall_total.pkl', 'wb'))
+pickle.dump(spec_total, open(newdir+'/spec_total.pkl', 'wb'))
+pickle.dump(auc_list, open(newdir+'/auc_list.pkl', 'wb'))
+pickle.dump(r2_list, open(newdir+'/r2_list.pkl', 'wb'))
 
 # get the training metric plots
 title1='Precision vs. Recall Curves: Obesity at 5 years from 24 months'
