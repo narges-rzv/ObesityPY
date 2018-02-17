@@ -106,7 +106,7 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
     if modelType == 'temporalCNN':
         hyperparamlist = [(0.1)]
     if modelType == 'gradientboost':
-        hyperparamlist = [(1500, 4, 2, 0.01,'lad'), (2500, 4, 2, 0.01,'lad')] #[n_estimators, max_depth, min_samples_split, learning_rate, loss]
+        hyperparamlist = [(1500, 4, 2, 0.01,'lad'), (2500, 4, 2, 0.01,'lad'), (3500, 4, 2, 0.01,'lad')] #[n_estimators, max_depth, min_samples_split, learning_rate, loss]
     if modelType == 'lars':
         hyperparamlist = [0.001, 0.01, 0.1]
 
@@ -260,7 +260,7 @@ def autoencoder_impute(x, bin_ix, hidden_nodes=100):
     xfinal[:,non_zero_ix] = xout
     return xfinal
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
+def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, return_train_test_data=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
 
     """
     Train regression model for predicting obesity outcome
@@ -303,6 +303,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
     return_data: default False; return X, y, y_label, feature_headers, and mrns created in the data creation phase
         NOTE: this is not the imputed, normalized, binarized, etc. data. 'feature_headers' still returned otherwise.
     return_data_transformed: default False; if True and return_data==True the transformed data will be returned in place of the original, unaltered data set.
+    return_train_test_data: default False; if True and return_data==TRue the train and test data used in the final analysis will be returned for error analysis
     do_impute: default 'True'; impute missing data
     mrnForFilter: default []; filter data by mrn values
     add_time: default False; use timeseries analyses
@@ -314,11 +315,15 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
 
     if any([len(x)==0 for x in (x1,y1,y1label,feature_headers,mrns)]):
         print('At least one required data not provided out of x1, y1, y1label, feature_headers, or mrns.')
-        print('Creating data from data dictionaries')
-        x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
-        original_data = (x1, y1, y1label, feature_headers, mrns)
+        try:
+            print('Creating data from the provided data dictionaries')
+            x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
+            original_data = (x1, y1, y1label, feature_headers, mrns)
+        except:
+            print('Not all of the required data was provided. Exiting analysis.')
+            return
     else:
-        print('Using prepared raw data')
+        print('Using pre-prepared data')
 
     if binarize_diagnosis:
         bin_ix = np.array([(h.startswith('Diagnosis:') or h.startswith('Maternal Diagnosis:') or h.startswith('Newborn Diagnosis:')) for h in feature_headers])
@@ -488,10 +493,15 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
     for k in feature_categories:
         print (k, ":", feature_categories[k])
 
-    if return_data and return_data_transformed:
-        return (model, x2, y1, y1label, feature_headers, mrns, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
-    elif return_data and not return_data_transformed:
-        return (model, original_data[0], original_data[1], original_data[2], original_data[3], original_data[4], filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
+    if return_data:
+        if return_data_transformed and return_train_test_data:
+            return (model, x2, y2, y2label, feature_headers, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
+        elif return_data_transformed and not return_train_test_data:
+            return (model, x2, y2, y2label, feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
+        elif not return_data_transformed and return_train_test_data:
+            return (model, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest, feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
+        else:
+            return (model, original_data[0], original_data[1], original_data[2], original_data[3], original_data[4], filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
     else:
         return (feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
 
