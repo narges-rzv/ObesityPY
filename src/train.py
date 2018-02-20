@@ -86,14 +86,16 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
 
 
     random.shuffle(ixlist)
-    xtrain = x[ixlist[0:int(N*2/3)], :]
-    ytrain = y[ixlist[0:int(N*2/3)]]
-    xtest = x[ixlist[int(N*2/3):],:]
-    ytest =  y[ixlist[int(N*2/3):]]
-    ytestlabel = ylabel[ixlist[int(N*2/3):]]
-    ytrainlabel = ylabel[ixlist[0:int(N*2/3)]]
-    mrnstrain = mrns[ixlist[0:int(N*2/3)]]
-    mrnstest = mrns[ixlist[int(N*2/3):]]
+    ix_train = ixlist[0:int(N*2/3)]
+    ix_test = ixlist[int(N*2/3):]
+    xtrain = x[ix_train]
+    ytrain = y[ix_train]
+    xtest = x[ix_test]
+    ytest =  y[ix_test]
+    ytestlabel = ylabel[ix_test]
+    ytrainlabel = ylabel[ix_train]
+    mrnstrain = mrns[ix_train]
+    mrnstest = mrns[ix_test]
 
     best_alpha = -1
     best_score = -10000
@@ -156,7 +158,7 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
     # print('R^2 score test:',clf.score(xtest,ytest))
     # print('RMSE score test: {0:4.3f}'.format(np.sqrt(((clf.predict(xtest)-ytest)**2).mean())))
     print('AUC test: {0:4.3f}'.format(metrics.auc(fpr, tpr))+' Explained Variance Score Test: {0:4.3f}'.format(metrics.explained_variance_score(ytest, clf.predict(xtest))))
-    return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest)
+    return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test)
 
 def normalize(x, filter_percentile_more_than_percent=5, mu=[], std=[], bin_ix=[]):
     unobserved = (x == 0)*1.0
@@ -330,7 +332,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
         print(bin_ix.sum(), 'features are binary')
         x1[:,bin_ix] = (x1[:,bin_ix] > 0) * 1.0
 
-    ix, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh)
+    ix_filter, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh)
 
     if do_impute or do_normalize or add_time:
         x2, mux, stdx, bin_ix, unobserved  = normalize(x2, bin_ix=bin_ix)
@@ -358,8 +360,8 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
     if filterSTR != '':
         print ('filtering patients with: ' , filterSTR)
 
-    print ('total size',ix.sum())
-    if (ix.sum() < 50):
+    print ('total size',ix_filter.sum())
+    if (ix_filter.sum() < 50):
         print('Not enough subjects. Next.')
         return (filterSTR, [])
 
@@ -372,7 +374,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
             random.shuffle(randix)
             randix = randix[0:int(len(randix)*0.9)]
             datax = x2[randix,:]; datay=y2[randix]; dataylabel = y2label[randix]; mrnx = mrns[randix]
-            (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest) = train_regression(datax, datay, dataylabel, percentile, modelType, feature_headers, mrnx)
+            (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test) = train_regression(datax, datay, dataylabel, percentile, modelType, feature_headers, mrnx)
             model_weights_array[iteration, :] = model.coef_ if ((modelType == 'lasso') or (modelType == 'lars')) else model.feature_importances_
             auc_test_list[iteration] = auc_test; r2testlist[iteration] = r2test
 
@@ -390,7 +392,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
             print('lets analyse this')
             return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest, mrns)
     else:
-        (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest) = train_regression(x2, y2, y2label, percentile, modelType, feature_headers, mrnx)
+        (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test) = train_regression(x2, y2, y2label, percentile, modelType, feature_headers, mrnx)
         model_weights_conf_term = np.zeros((x2.shape[1]), dtype=float)
         test_auc_mean = auc_test; r2test_mean= r2test;
         test_auc_mean_ste = 0; r2test_ste=0
@@ -495,9 +497,9 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
 
     if return_data:
         if return_data_transformed and return_train_test_data:
-            return (model, x2, y2, y2label, feature_headers, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
+            return (model, x2, y2, y2label, ix_filter, randix, ix_train, ix_test, feature_headers, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
         elif return_data_transformed and not return_train_test_data:
-            return (model, x2, y2, y2label, feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
+            return (model, x2, y2, y2label, ix_filter, randix, ix_train, ix_test, feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
         elif not return_data_transformed and return_train_test_data:
             return (model, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest, feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
         else:

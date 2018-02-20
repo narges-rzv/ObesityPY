@@ -35,14 +35,8 @@ for months_to in [6,12,18,24,36,48]:
     x1_no_maternal,y1,y1label,feature_headers,mrns = build_features.call_build_function(d1, d1mom, {}, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, False)
     x1_maternal,y1,y1label,feature_headers,mrns = build_features.call_build_function(d1, d1mom, d1mom_hist, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, False)
 
-    # pickle.dump(x1_no_maternal, open('x_no_maternal_'+timestr+'.pkl', 'wb'))
-    # pickle.dump(x1_maternal, open('x_maternal_'+timestr+'.pkl', 'wb'))
-    np.save(newdir+'/x_no_maternal_pred_at_'+str(months_to)+'months.npy', x1_no_maternal)
-    np.save(newdir+'/x_w_maternal_pred_at_'+str(months_to)+'months.npy', x1_maternal)
-    np.save(newdir+'/y_pred_at_'+str(months_to)+'months.npy', y1)
-    np.save(newdir+'/y_label_pred_at_'+str(months_to)+'months.npy', y1label)
-    pickle.dump(feature_headers, open(newdir+'/feature_headers_pred_at_'+str(months_to)+'months.pkl', 'wb'))
-    pickle.dump(mrns, open(newdir+'/mrns_pred_at_'+str(months_to)+'months.pkl', 'wb'))
+    np.savez_compressed(newdir+'/no_maternal_'+str(months_to)+'months', x=x1_no_maternal, y=y1, ylabel=y1label, mrns=mrns, features=np.array(feature_headers))
+    np.savez_compressed(newdir+'/maternal_'+str(months_to)+'months', x=x1_maternal, y=y1, ylabel=y1label, mrns=mrns, features=np.array(feature_headers))
 
     #Run all the models
     # filter_str = ['Vital: Wt-latest', 'Vital: BMI-latest']
@@ -62,7 +56,7 @@ for months_to in [6,12,18,24,36,48]:
                 gender_clean = 'boys' if ix==0 else 'girls'
 
                 print('\n' + modeltype_ix + '\t' + filterstr_ix + '\t' + mother_hist_ix + '@ ' + str(months_to) + ' months')
-                (model, x2, y2, y2label, feature_headers2, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest,
+                (model, x2, y2, y2label, ix_filter, randix, ix_train, ix_test, feature_headers2, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest,
                 filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns2,
                 prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste) = \
                         train.train_regression_model_for_bmi({}, {}, {}, {}, {}, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to,
@@ -75,10 +69,9 @@ for months_to in [6,12,18,24,36,48]:
                                 return_train_test_data=True,
                                 do_impute=False)
 
-                np.save(newdir+'/train_data_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,str(months_to),'months.npy']), np.hstack((xtrain,mrnstrain.reshape(-1,1),ytrain.reshape(-1,1),ytrainlabel.reshape(-1,1))))
-                np.save(newdir+'/test_data_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,str(months_to),'months.npy']), np.hstack((xtest,mrnstest.reshape(-1,1),ytest.reshape(-1,1),ytestlabel.reshape(-1,1))))
-                np.save(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,str(months_to)+'months.npy']), np.hstack((x2,mrns2.reshape(-1,1),y2.reshape(-1,1),y2label.reshape(-1,1))))
-                pickle.dump(feature_headers2, open(newdir+'/feature_headers_pred_at_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,str(months_to)+'months_transformed.pkl']), 'wb'))
+                np.savez_compressed(newdir+'/train_data_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
+                np.savez_compressed(newdir+'/test_data_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
+                np.savez_compressed(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,str(months_to),'months']), x=x2, mrns=mrns2, features=np.array(feature_headers2), y=y2, ylabel=y2label, ix2=ix_filter, modeling_ix=randix, train_ix=ix_train, test_ix=ix_test)
 
                 titles_total.append(gender_clean + ' ' + mother_hist_ix + ' - model: ' + modeltype_ix + '@ ' + str(months_to) + 'months')
                 model_list.append(model)
@@ -90,7 +83,7 @@ for months_to in [6,12,18,24,36,48]:
 
                 # without vitals and maternal historical data
                 print(modeltype_ix + '\t' + filterstr_ix + '\t' + mother_hist_ix + '@ ' + str(months_to) + ' months w/o vitals and maternal historical data')
-                (model, x2, y2, y2label, feature_headers2, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest,
+                (model, x2, y2, y2label, ix_filter, randix, ix_train, ix_test, feature_headers2, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest,
                 filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns2,
                 prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste) = \
                         train.train_regression_model_for_bmi({}, {}, {}, {}, {}, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to,
@@ -104,10 +97,9 @@ for months_to in [6,12,18,24,36,48]:
                                 return_train_test_data=True,
                                 do_impute=False)
 
-                np.save(newdir+'/train_data_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'no_vitals_no_mat',str(months_to),'months.npy']), np.hstack((xtrain,mrnstrain.reshape(-1,1),ytrain.reshape(-1,1),ytrainlabel.reshape(-1,1))))
-                np.save(newdir+'/test_data_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'no_vitals_no_mat',str(months_to),'months.npy']), np.hstack((xtest,mrnstest.reshape(-1,1),ytest.reshape(-1,1),ytestlabel.reshape(-1,1))))
-                np.save(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'no_vitals_no_mat',str(months_to)+'months.npy']), np.hstack((x2,mrns2.reshape(-1,1),y2.reshape(-1,1),y2label.reshape(-1,1))))
-                pickle.dump(feature_headers2, open(newdir+'/feature_headers_pred_at_'+'_'.join([modeltype_ix,'no_vitals_no_mat',gender_clean,mother_hist_ix,str(months_to)+'months_transformed.pkl']), 'wb'))
+                np.savez_compressed(newdir+'/train_data_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'no_vitals_no_mat',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
+                np.savez_compressed(newdir+'/testdata_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'no_vitals_no_mat',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
+                np.savez_compressed(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'no_vitals_no_mat',str(months_to),'months']), x=x2, mrns=mrns2, features=np.array(feature_headers2), y=y2, ylabel=y2label, ix2=ix_filter, modeling_ix=randix, train_ix=ix_train, test_ix=ix_test)
 
                 titles_total.append(gender_clean + ' ' + mother_hist_ix + ' w/o vitals and maternal' + ' - model: ' + modeltype_ix + '@ ' + str(months_to) + 'months')
                 model_list.append(model)
@@ -117,9 +109,36 @@ for months_to in [6,12,18,24,36,48]:
                 auc_list.append([test_auc_mean, test_auc_mean_ste])
                 r2_list.append([r2test_mean, r2test_ste])
 
+                # without exclusion criteria (except gender)
+                print(modeltype_ix + '\t' + filterstr_ix + '\t' + mother_hist_ix + '@ ' + str(months_to) + ' months no exclusion')
+                (model, x2, y2, y2label, ix_filter, randix, ix_train, ix_test, feature_headers2, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest,
+                filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns2,
+                prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste) = \
+                        train.train_regression_model_for_bmi({}, {}, {}, {}, {}, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to,
+                                filterSTR=[filterstr_ix],
+                                variablesubset=[],
+                                modelType=modeltype_ix,
+                                return_data_for_error_analysis=False,
+                                return_data=True,
+                                return_data_transformed=True,
+                                return_train_test_data=True,
+                                do_impute=False)
+
+                np.savez_compressed(newdir+'/train_data_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'no_exclusion',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
+                np.savez_compressed(newdir+'/testdata_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'no_exclusion',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
+                np.savez_compressed(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'no_exclusion',str(months_to),'months']), x=x2, mrns=mrns2, features=np.array(feature_headers2), y=y2, ylabel=y2label, ix2=ix_filter, modeling_ix=randix, train_ix=ix_train, test_ix=ix_test)
+
+                titles_total.append(gender_clean + ' ' + mother_hist_ix + ' w/o exclusions' + ' - model: ' + modeltype_ix + '@ ' + str(months_to) + 'months')
+                model_list.append(model)
+                prec_total.append(prec_list)
+                recall_total.append(recall_list)
+                spec_total.append(spec_list)
+                auc_list.append([test_auc_mean, test_auc_mean_ste])
+                r2_list.append([r2test_mean, r2test_ste])
+
             # 'Vital: BMI-latest' only model
             print(modeltype_ix + '\t' + filterstr_ix + '\t' + ' Vital: BMI-latest @ ' + str(months_to) + ' months')
-            (model, x2, y2, y2label, feature_headers2, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest,
+            (model, x2, y2, y2label, ix_filter, randix, ix_train, ix_test, feature_headers2, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest,
             filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns2,
             prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste) = \
                     train.train_regression_model_for_bmi({}, {}, {}, {}, {}, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to,
@@ -132,10 +151,9 @@ for months_to in [6,12,18,24,36,48]:
                             return_train_test_data=True,
                             do_impute=False)
 
-            np.save(newdir+'/train_data_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: BMI-latest',str(months_to),'months.npy']), np.hstack((xtrain,mrnstrain.reshape(-1,1),ytrain.reshape(-1,1),ytrainlabel.reshape(-1,1))))
-            np.save(newdir+'/test_data_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: BMI-latest',str(months_to),'months.npy']), np.hstack((xtest,mrnstest.reshape(-1,1),ytest.reshape(-1,1),ytestlabel.reshape(-1,1))))
-            np.save(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: BMI-latest',str(months_to)+'months.npy']), np.hstack((x2,mrns2.reshape(-1,1),y2.reshape(-1,1),y2label.reshape(-1,1))))
-            pickle.dump(feature_headers2, open(newdir+'/feature_headers_pred_at_'+'_'.join([modeltype_ix,'Vital: BMI-latest',gender_clean,mother_hist_ix,str(months_to)+'months_transformed.pkl']), 'wb'))
+            np.savez_compressed(newdir+'/train_data_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: BMI-latest',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
+            np.savez_compressed(newdir+'/test_data_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: BMI-latest',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
+            np.savez_compressed(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: BMI-latest',str(months_to),'months']), x=x2, mrns=mrns2, features=np.array(feature_headers2), y=y2, ylabel=y2label, ix2=ix_filter, modeling_ix=randix, train_ix=ix_train, test_ix=ix_test)
 
             titles_total.append(gender_clean + ' - model: ' + modeltype_ix + ' - ' + 'Vital: BMI-latest @ ' + str(months_to) + 'months')
             model_list.append(model)
@@ -147,7 +165,7 @@ for months_to in [6,12,18,24,36,48]:
 
             # 'Vital: Wt-latest' only model
             print(modeltype_ix + '\t' + filterstr_ix + '\t' + ' Vital: Wt-latest @ ' + str(months_to) + ' months')
-            (model, x2, y2, y2label, feature_headers2, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest,
+            (model, x2, y2, y2label, ix_filter, randix, ix_train, ix_test, feature_headers2, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest,
             filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns2,
             prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste) = \
                     train.train_regression_model_for_bmi({}, {}, {}, {}, {}, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to,
@@ -160,10 +178,9 @@ for months_to in [6,12,18,24,36,48]:
                             return_train_test_data=True,
                             do_impute=False)
 
-            np.save(newdir+'/train_data_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: Wt-latest',str(months_to),'months.npy']), np.hstack((xtrain,mrnstrain.reshape(-1,1),ytrain.reshape(-1,1),ytrainlabel.reshape(-1,1))))
-            np.save(newdir+'/test_data_comb_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: Wt-latest',str(months_to),'months.npy']), np.hstack((xtest,mrnstest.reshape(-1,1),ytest.reshape(-1,1),ytestlabel.reshape(-1,1))))
-            np.save(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: Wt-latest',str(months_to)+'months.npy']), np.hstack((x2,mrns2.reshape(-1,1),y2.reshape(-1,1),y2label.reshape(-1,1))))
-            pickle.dump(feature_headers2, open(newdir+'/feature_headers_pred_at_'+'_'.join([modeltype_ix,'Vital: Wt-latest',gender_clean,mother_hist_ix,str(months_to)+'months_transformed.pkl']), 'wb'))
+            np.savez_compressed(newdir+'/train_data_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: Wt-latest',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
+            np.savez_compressed(newdir+'/test_data_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: Wt-latest',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
+            np.savez_compressed(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,mother_hist_ix,'Vital: Wt-latest',str(months_to),'months']), x=x2, mrns=mrns2, features=np.array(feature_headers2), y=y2, ylabel=y2label, ix2=ix_filter, modeling_ix=randix, train_ix=ix_train, test_ix=ix_test)
 
             titles_total.append(gender_clean + ' - model: ' + modeltype_ix + ' - ' + 'Vital: Wt-latest @ ' + str(months_to) + 'months')
             model_list.append(model)
@@ -174,14 +191,14 @@ for months_to in [6,12,18,24,36,48]:
             r2_list.append([r2test_mean, r2test_ste])
 
 
-# Save the outputs
-pickle.dump(titles_total, open(newdir+'/titles_total.pkl', 'wb'))
-pickle.dump(model_list, open(newdir+'/model_list.pkl', 'wb'))
-pickle.dump(prec_total, open(newdir+'/prec_total.pkl', 'wb'))
-pickle.dump(recall_total, open(newdir+'/recall_total.pkl', 'wb'))
-pickle.dump(spec_total, open(newdir+'/spec_total.pkl', 'wb'))
-pickle.dump(auc_list, open(newdir+'/auc_list.pkl', 'wb'))
-pickle.dump(r2_list, open(newdir+'/r2_list.pkl', 'wb'))
+            # Save the outputs -- overwrite at each step in case of crash
+            pickle.dump(titles_total, open(newdir+'/titles_total.pkl', 'wb'))
+            pickle.dump(model_list, open(newdir+'/model_list.pkl', 'wb'))
+            pickle.dump(prec_total, open(newdir+'/prec_total.pkl', 'wb'))
+            pickle.dump(recall_total, open(newdir+'/recall_total.pkl', 'wb'))
+            pickle.dump(spec_total, open(newdir+'/spec_total.pkl', 'wb'))
+            pickle.dump(auc_list, open(newdir+'/auc_list.pkl', 'wb'))
+            pickle.dump(r2_list, open(newdir+'/r2_list.pkl', 'wb'))
 
 # get the training metric plots
 # title1='Precision vs. Recall Curves: Obesity at 5 years from 24 months'
