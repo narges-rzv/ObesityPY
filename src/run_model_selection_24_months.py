@@ -24,7 +24,7 @@ r2_list = []
 agex_low = 4.5
 agex_high = 5.5
 months_from = 0
-months_to in 24
+months_to = 24
 
 timestr = time.strftime("%Y%m%d")
 newdir='../outputs_'+str(months_to)+'months_analyses'+timestr
