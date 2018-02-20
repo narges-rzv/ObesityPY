@@ -30,13 +30,14 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
         filterSTRThresh = [0.5]*len(filterSTR) #make it binary, as before.
 
     print('x shape:', x.shape, 'num features:',len(headers))
+    print('Original cohort size is:', x.shape[0])
 
     index_finder_anyvital = np.array([h.startswith('Vital') for h in headers])
     index_finder_maternal = np.array([h.startswith('Maternal') for h in headers])
 
     index_finder_filterstr = np.zeros(len(headers))
 
-    for fstr in filterSTR:
+    for i, fstr in enumerate(filterSTR):
         # print(index_finder_filterstr + np.array([h.startswith(fstr) for h in headers]))
         index_finder_filterstr_tmp = np.array([h.startswith(fstr) for h in headers])
         if index_finder_filterstr_tmp.sum() > 1:
@@ -44,6 +45,8 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
             index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
             print('set filter to h==', fstr)
         index_finder_filterstr = index_finder_filterstr + index_finder_filterstr_tmp
+        print('total number of people who have: ', np.array(headers)[index_finder_filterstr_tmp], ' is:', ( x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i] ).sum() )
+    
     index_finder_filterstr = (index_finder_filterstr > 0)
 
     # if index_finder_filterstr.sum() > 1 and filterSTR.__class__ != list:
@@ -53,7 +56,11 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
     # import pdb
     # pdb.set_trace()
     if (len(filterSTR) != 0) and (percentile == False):
-        ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1) #& ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+        ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()) & ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+    print('total number of people who have a BMI measured:', sum((y > 10) & (y < 40)))
+    print('total number of people who have all filtered variables:', (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
+    print('total number of people who have maternal data available:', ((x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum() )
+    print('intersection of the three above is:', sum(ix))
 
     # elif percentile == False:
     #     ix = (y > 10) & (y < 40) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1)
@@ -327,6 +334,8 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
 
     ix, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh)
 
+    print_charac_table(x2, y2, y2label, feature_headers)
+
     if do_impute or do_normalize or add_time:
         x2, mux, stdx, bin_ix, unobserved  = normalize(x2, bin_ix=bin_ix)
 
@@ -347,11 +356,12 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
         x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
 
     print ('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
+    print ('of the ', y2.shape[0], ' total positive labels are:', y2label.sum())
     print ('normalizing output.'); y2 = (y2-y2.mean())/y2.std()
 
     print ('Predicting BMI at age:'+str(agex_low)+ ' to '+str(agex_high)+ 'years, from data in ages:'+ str(months_from)+'-'+str(months_to) + ' months')
     if filterSTR != '':
-        print ('filtering patients with: ' , filterSTR)
+        print ('filtering patients with: ', filterSTR)
 
     print ('total size',ix.sum())
     if (ix.sum() < 50):
@@ -594,6 +604,53 @@ def ROC_curve(recall_list, specificity_list, titles_list, title, show=True, save
     if show:
         plt.show()
     return
+
+def print_charac_table(x2, y2, y2label, headers, table_features=['Diagnosis:', 'Maternal Diagnosis:', 'Maternal-birthplace:', 'Maternal-marriageStatus:', 'Maternal-nationality:', 'Maternal-race:', 'Maternal-ethnicity:', 'Maternal-Language:', 'Vital:', 'Gender']):
+    """
+    Computing and printing to standard output, a characteristics table including various factors. Does not return anything. 
+    #### PARAMETERS ####
+    x2: numpy matrix of size N x D where D is the number of features and N is number of samples. Can contain integer and float variables.
+    y2: numpy matrix of size N where N is number of samples. Contains float outcomes
+    y2label: numpy matrix of size N where N is number of samples. Contains Bool or binary outcomes.
+    headers: list of length D, of D string description for each column in x2
+    table_features: list of types of features that we are interested in reporting in the characteristics table. 
+    """
+    from scipy.stats import norm
+    y2pos_ix = (y2label > 0)
+    print(' Characteristics Table')
+    print(' Variable | Total N | Total Average(SD) | Pos N | Pos Average (SD) | Neg N | Neg Average (SD) | Odds Ratio (low, high) | Relative Risk | p-value for OR')
+    for ix, h in enumerate(headers):
+        if any( [h.startswith(charfeats) for charfeats in table_features] ):
+            if (x2[:,ix] != 0).sum() > 5:
+                bin_indicator = x2[:,ix].max()==1 and x2[:,ix].min()==0
+
+                ix_total = (x2[:,ix] != 0)
+                ix_total_pos = (y2label > 0) & (x2[:,ix] != 0)
+                ix_total_neg = (y2label == 0) & (x2[:,ix] != 0)
+                De = sum((y2label > 0) & (x2[:,ix] != 0)) * 1.0
+                He = sum((y2label == 0) & (x2[:,ix] != 0)) * 1.0
+                Dn = sum((y2label > 0) & (x2[:,ix] == 0)) * 1.0
+                Hn = sum((y2label == 0) & (x2[:,ix] == 0)) * 1.0
+                OR = (De/He)/(Dn/Hn) 
+                OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
+                OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
+                RR = (De/(De+He))/(Dn/(Dn+Hn)) 
+                
+                md = x2[ix_total_pos,:][:,ix].mean() - x2[ix_total_neg,:][:,ix].mean()
+                se = np.sqrt( np.var(x2[ix_total_pos,:][:,ix]) / len(x2[ix_total_pos,:][:,ix]) + np.var(x2[ix_total_neg,:][:,ix])/len(x2[ix_total_neg,:][:,ix]))
+                lcl, ucl = md-2*se, md+2*se
+                z = md/se
+                
+                pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+                
+                print(h + ' | {0:4.0f} | {1:4.3f} ({2:4.3f}) | {3:4.0f} | {4:4.3f} ({5:4.3f}) | {6:4.0f} | {7:4.3f} ({8:4.3f}) | {9:4.3f} ({10:4.3f}, {11:4.3f}) | {12:4.3f} | '. format(\
+                ix_total.sum(), x2[ix_total,:][:,ix].mean(), x2[ix_total,:][:,ix].std(), \
+                ix_total_pos.sum(), x2[ix_total_pos,:][:,ix].mean() if not(bin_indicator) else 0, x2[ix_total_pos,:][:,ix].std() if not(bin_indicator) else 0, 
+                ix_total_neg.sum(), x2[ix_total_neg,:][:,ix].mean() if not(bin_indicator) else 0,  x2[ix_total_neg,:][:,ix].std() if not(bin_indicator) else 0,
+                OR if bin_indicator else 0, OR_low if bin_indicator else 0, OR_high if bin_indicator else 0, 
+                RR if bin_indicator else 0, 
+                ) + str(pvalue))
+
 
 if __name__=='__main__':
     d1 = pickle.load(open('patientdata_20170823.pkl', 'rb'))
