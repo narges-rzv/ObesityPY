@@ -77,6 +77,9 @@ def build_features_vitalLatest(patient_data, maternal_data, maternal_hist_data, 
                 pass
     return res
 
+def build_features_vitalAverage_0_0(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalAverage(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 0)
+
 def build_features_vitalAverage_0_1(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     return build_features_vitalAverage(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 1)
 
@@ -134,7 +137,7 @@ def build_features_vitalAverage(patient_data, maternal_data, maternal_hist_data,
     bdate = patient_data['bdate']
     for code in patient_data['vitals']:
         for (edate, vitalval) in patient_data['vitals'][code]:
-            if edate >= reference_date_end or edate <= reference_date_start:
+            if edate > reference_date_end or edate < reference_date_start:
                 continue
             try:
                 age_at_vital = (edate - bdate).days / 30
@@ -1087,6 +1090,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         # (build_features_vitalAverage_15_18, [ feature_index_vitalLatest, [h+'-avg15to18' for h in feature_headers_vitalsLatest]]),
         # # (build_features_vitalAverage_18_21, [ feature_index_vitalLatest, [h+'-avg18to21' for h in feature_headers_vitalsLatest]]),
         # (build_features_vitalAverage_18_24, [ feature_index_vitalLatest, [h+'-avg18to24' for h in feature_headers_vitalsLatest]]),
+        (build_features_vitalAverage_0_1, [ feature_index_vitalLatest, [h+'-AtBirth' for h in feature_headers_vitalsLatest]]),        
         (build_features_vitalAverage_0_1, [ feature_index_vitalLatest, [h+'-avg0to1' for h in feature_headers_vitalsLatest]]),
         (build_features_vitalAverage_1_3, [ feature_index_vitalLatest, [h+'-avg1to3' for h in feature_headers_vitalsLatest]]),
         (build_features_vitalAverage_3_5, [ feature_index_vitalLatest, [h+'-avg3to5' for h in feature_headers_vitalsLatest]]),
