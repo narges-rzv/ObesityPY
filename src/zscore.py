@@ -47,13 +47,12 @@ def zscore_wfl(gender, length, weight):
                 L[ix] = wfl[gender[ix]][ix_low,0]
                 M[ix] = wfl[gender[ix]][ix_low,1]
                 S[ix] = wfl[gender[ix]][ix_low,2]
-            elif length[ix] - math.fmod(length[ix]*10, 1)/10 in wfl['length']:
-                ix_low = wfl['length'].index(length[ix] - math.fmod(length[ix]*10, 1)/10)
+            else:
+                ix_low = wfl['length'].index(int(length[ix]*10)/10)
                 L[ix] = linear_interpolation(length[ix], wfl['length'][ix_low], wfl['length'][ix_low+1], wfl[gender[ix]][ix_low,0], wfl[gender[ix]][ix_low+1,0])
                 M[ix] = linear_interpolation(length[ix], wfl['length'][ix_low], wfl['length'][ix_low+1], wfl[gender[ix]][ix_low,1], wfl[gender[ix]][ix_low+1,1])
                 S[ix] = linear_interpolation(length[ix], wfl['length'][ix_low], wfl['length'][ix_low+1], wfl[gender[ix]][ix_low,2], wfl[gender[ix]][ix_low+1,2])
-            else:
-                continue
+
         zscores = (((weight / M)**L) - 1.) / (S * L)
         zscores[(np.abs(zscores) > 5)] = np.sign(zscores[(np.abs(zscores) > 5)])
         return np.nan_to_num(zscores)
@@ -65,13 +64,12 @@ def zscore_wfl(gender, length, weight):
             L = wfl[gender][ix,0]
             M = wfl[gender][ix,1]
             S = wfl[gender][ix,2]
-        elif length - math.fmod(length*10, 1)/10 in wfl['length']:
-            ix_low = wfl['length'].index(length - math.fmod(length*10, 1)/10)
+        else:
+            ix_low = wfl['length'].index(int(length*10)/10)
             L = linear_interpolation(length, wfl['length'][ix_low], wfl['length'][ix_low+1], wfl[gender][ix_low,0], wfl[gender][ix_low+1,0])
             M = linear_interpolation(length, wfl['length'][ix_low], wfl['length'][ix_low+1], wfl[gender][ix_low,1], wfl[gender][ix_low+1,1])
             S = linear_interpolation(length, wfl['length'][ix_low], wfl['length'][ix_low+1], wfl[gender][ix_low,2], wfl[gender][ix_low+1,2])
-        else:
-            return 0
+
         Z = (((weight / M)**L) - 1) / (S * L)
         if abs(Z) > 5:
             Z = np.sign(Z) * 1.
