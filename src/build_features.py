@@ -153,30 +153,36 @@ def build_features_vitalAverage(patient_data, maternal_data, maternal_hist_data,
     return res
 
 def build_features_vitalGain_0_3(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 1, 3)
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 1, 1, 3)
 
 def build_features_vitalGain_1_5(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 1, 3, 5)
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 1, 3, 3, 5)
 
 def build_features_vitalGain_3_7(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 3, 5, 7)
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 3, 5, 5, 7)
 
 def build_features_vitalGain_5_10(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 5, 7, 10)
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 5, 7, 7, 10)
 
 def build_features_vitalGain_7_13(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 7, 10, 13)
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 7, 10, 10, 13)
 
 def build_features_vitalGain_10_16(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 10, 13, 16)
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 10, 13, 13, 16)
 
 def build_features_vitalGain_13_19(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 13, 16, 19)
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 13, 16, 16, 19)
 
 def build_features_vitalGain_16_24(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
-    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 16, 19, 24)
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 16, 19, 19, 24)
 
-def build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, startmonth, midmonth, endmonth):
+def build_features_vitalGain_0_24(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
+    return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 0, 19, 24)
+
+def build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, startmonth1, endmonth1, startmonth2, endmonth2):
+    """
+    Computes the gain between two time periods
+    """
     res1 = np.zeros(len(feature_headers), dtype=float)
     res_cnt1 = np.zeros(len(feature_headers), dtype=float)
     res2 = np.zeros(len(feature_headers), dtype=float)
@@ -188,12 +194,12 @@ def build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, la
                 continue
             try:
                 age_at_vital = (edate - bdate).days / 30
-                if ((age_at_vital < startmonth) or (age_at_vital > endmonth)):
+                if ((age_at_vital < startmonth1) or (age_at_vital > endmonth2)) or ((age_at_vital > endmonth1) and (age_at_vital < startmonth2)):
                     continue
-                if (age_at_vital > startmonth) and (age_at_vital < midmonth):
+                if (age_at_vital > startmonth1) and (age_at_vital < endmonth1):
                     res1[feature_index[code.strip()]] += vitalval
                     res_cnt1[feature_index[code.strip()]] += 1
-                elif (age_at_vital > midmonth) and (age_at_vital < endmonth):
+                elif (age_at_vital > startmonth2) and (age_at_vital < endmonth2):
                     res2[feature_index[code.strip()]] += vitalval
                     res_cnt2[feature_index[code.strip()]] += 1
             except:
@@ -1090,7 +1096,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         # (build_features_vitalAverage_15_18, [ feature_index_vitalLatest, [h+'-avg15to18' for h in feature_headers_vitalsLatest]]),
         # # (build_features_vitalAverage_18_21, [ feature_index_vitalLatest, [h+'-avg18to21' for h in feature_headers_vitalsLatest]]),
         # (build_features_vitalAverage_18_24, [ feature_index_vitalLatest, [h+'-avg18to24' for h in feature_headers_vitalsLatest]]),
-        (build_features_vitalAverage_0_1, [ feature_index_vitalLatest, [h+'-AtBirth' for h in feature_headers_vitalsLatest]]),        
+        (build_features_vitalAverage_0_0, [ feature_index_vitalLatest, [h+'-AtBirth' for h in feature_headers_vitalsLatest]]),
         (build_features_vitalAverage_0_1, [ feature_index_vitalLatest, [h+'-avg0to1' for h in feature_headers_vitalsLatest]]),
         (build_features_vitalAverage_1_3, [ feature_index_vitalLatest, [h+'-avg1to3' for h in feature_headers_vitalsLatest]]),
         (build_features_vitalAverage_3_5, [ feature_index_vitalLatest, [h+'-avg3to5' for h in feature_headers_vitalsLatest]]),
@@ -1108,6 +1114,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         (build_features_vitalGain_10_16, [ feature_index_vitalGains, [h+'-gain10to16' for h in feature_headers_vitalsGains]]),
         (build_features_vitalGain_13_19, [ feature_index_vitalGains, [h+'-gain13to19' for h in feature_headers_vitalsGains]]),
         (build_features_vitalGain_16_24, [ feature_index_vitalGains, [h+'-gain16to24' for h in feature_headers_vitalsGains]]),
+        (build_features_vitalGain_0_24, [ feature_index_vitalGains, [h+'-gain0to24' for h in feature_headers_vitalsGains]]),
         # environment
         (build_features_zipcd, [ feature_index_zipcd, feature_headers_zipcd]),
         (build_features_census, [ feature_index_census, feature_headers_census]),
@@ -1222,8 +1229,9 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
                 outcomelabels[ix] = stats.mode(np.array(BMI_outcome_list)).mode[0]
                 outcome[ix] = np.array(BMI_list).mean()
 
-    zscore_headers = ['Vital: Wt for Length Zscore-avg0to1','Vital: Wt for Length Zscore-avg1to3','Vital: Wt for Length Zscore-avg3to5','Vital: Wt for Length Zscore-avg5to7','Vital: Wt for Length Zscore-avg7to10','Vital: Wt for Length Zscore-avg10to13','Vital: Wt for Length Zscore-avg13to16','Vital: Wt for Length Zscore-avg16to19','Vital: Wt for Length Zscore-avg19to24']
-    zscore_gain_headers = ['Vital: Wt for Length Zscore-gain0to3','Vital: Wt for Length Zscore-gain1to5','Vital: Wt for Length Zscore-gain3to7','Vital: Wt for Length Zscore-gain5to10','Vital: Wt for Length Zscore-gain7to13','Vital: Wt for Length Zscore-gain10to16','Vital: Wt for Length Zscore-gain13to19','Vital: Wt for Length Zscore-gain16to24']
+    # Calculate the Z-Scores for each of the vital periods and the gain between them
+    zscore_headers = ['Vital: Wt for Length ZScore-avg0to1','Vital: Wt for Length ZScore-avg1to3','Vital: Wt for Length ZScore-avg3to5','Vital: Wt for Length ZScore-avg5to7','Vital: Wt for Length ZScore-avg7to10','Vital: Wt for Length Zscore-avg10to13','Vital: Wt for Length ZScore-avg13to16','Vital: Wt for Length ZScore-avg16to19','Vital: Wt for Length ZScore-avg19to24']
+    zscore_gain_headers = ['Vital: Wt for Length ZScore-gain0to3','Vital: Wt for Length ZScore-gain1to5','Vital: Wt for Length ZScore-gain3to7','Vital: Wt for Length ZScore-gain5to10','Vital: Wt for Length ZScore-gain7to13','Vital: Wt for Length ZScore-gain10to16','Vital: Wt for Length ZScore-gain13to19','Vital: Wt for Length ZScore-gain16to24']
     headers += zscore_headers + zscore_gain_headers
 
     zscores = np.zeros((len(mrns),len(zscore_headers)))
@@ -1235,5 +1243,9 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         zscores[:,ix] = zscore.zscore_wfl(genders, hts, wts)
     for ix in range(len(zscore_gain_headers)):
         zscores_gain[:,ix] = zscores[:,ix+1] - zscores[:,ix]
-    features = np.hstack((features, zscores, zscores_gain))
+
+    headers += ['Vital: Wt for Length ZScore-gain0to24']
+    zscore_gain_0_24 = zscores[:,-1] - zscores[:,0]
+
+    features = np.hstack((features, zscores, zscores_gain, zscore_gain_0_24.reshape(-1,1)))
     return features, outcome, outcomelabels, headers, np.array(mrns)
