@@ -308,7 +308,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
     percentile: default False; filter to ensure certain types of features exist for each data point
     filterSTR: default ['Gender:1']; filter specific features to have vaules greater than 'filterSTRThresh' for each filterSTR
     filterSTRThresh: default [0.5]; filter out data points with values less than the provided amount for each filterSTR feature
-    variablesubset: default []; use only specified list of feature(s) (can be exact match or feature category)
+    variablesubset: default []; use only specified list of feature(s) (can be exact match or feature category as long as each item is the start of a feature name)
     variable_exclude: not used
     num_clusters: default 16; number of kmeans clusters to use for timeseries data
     num_iters: default 100; number of iterations for kmeans clusters for timeseries data
