@@ -1,15 +1,16 @@
-import config as config_file
-import pandas as pd
-import zscore
-import pickle
 import re
-import matplotlib.pylab as plt
 import time
-from datetime import timedelta
-from dateutil import parser
+import pickle
+import zscore
+import warnings
 import numpy as np
+import pandas as pd
+import config as config_file
+import matplotlib.pylab as plt
 import outcome_def_pediatric_obesity
 from scipy import stats
+from dateutil import parser
+from datetime import timedelta
 
 
 def build_features_icd(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
@@ -1047,9 +1048,40 @@ def mother_child_map(data_dic, data_dic_moms, data_dic_hist_moms):  #ROB
             mother_child_dic[data_dic_moms[data_dic[k]['mrn']]['mom_mrn']] = {data_dic[k]['mrn']: data_dic[k]['bdate']}
     return mother_child_dic
 
-def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=[]):
+def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, prediction='obese', mrnsForFilter=[]):
+    """
+    Creates the base data set to be used in analysis for obesity prediction.
+    #### PARAMETERS ####
+    data_dic: data dictionary of children's EHR
+    data_dic_moms: data dictionary of of mother's EHR at time of child's birth
+    data_dic_hist_moms: data dictionary of mother's EHR that is within the same hospital system
+    lat_lon_dic: data dictionary of mother's geocoded address information
+    env_dic: data dictionary of census features
+    agex_low: low age (in years) for prediction
+    agex_high: high age (in years) for prediction
+    months_from: start date (in months) for date filter
+    months_to: end date (in months) for date filter
+    percentile: set to False
+    prediction: default = 'obese'. obesity threshold for bmi/age percentile for outcome class.
+        Source: https://www.cdc.gov/obesity/childhood/defining.html
+        'overweight': 0.85 <= bmi percentile < 0.95
+        'obese': 0.95 <= bmi percentile <= 1.0
+        'extreme': 0.99 <= bmi percentile <= 1.0
+    mrnsForFilter: default = []. mrns to create data for.
+    """
+
     outcome = np.zeros(len(data_dic.keys()), dtype=float)
     outcomelabels = np.zeros(len(data_dic.keys()), dtype=float)
+    if prediction == 'overweight':
+        low_pct, high_pct = (0.85,0.95)
+    elif prediction == 'obese':
+        low_pct, high_pct = (0.95,1.)
+    elif prediction == 'extreme':
+        low_pct, high_pct = (0.99,1.)
+    else:
+        warnings.warn('Invalid prediction parameter. Using default "obese" thresholds.')
+        low_pct, high_pct = (0.95,1.)
+
     feature_index_gen, feature_headers_gen = build_feature_gender_index()
     feature_index_icd, feature_headers_icd = build_feature_ICD_index()
     feature_index_lab, feature_headers_lab = build_feature_lab_index()
@@ -1184,7 +1216,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
                 age = (edate - bdate).days / 365.0
                 if (age >= agex_low) and (age< agex_high):
                     BMI_list.append(bmi)
-                    BMI_outcome_list.append((outcome_def_pediatric_obesity.outcome(bmi, data_dic[k]['gender'], age) >= 0.95))
+                    BMI_outcome_list.append(low_pct <= stats.norm.cdf(zscore.zscore_bmi(data_dic[k]['gender'], age, bmi, unit='years')) < high_pct) # function takes age as months
                     if (flag == False): #compute features once
                         if data_dic[k]['mrn'] in data_dic_moms:
                             maternal_data = data_dic_moms[data_dic[k]['mrn']]
@@ -1237,10 +1269,10 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
     zscores = np.zeros((len(mrns),len(zscore_headers)))
     zscores_gain = np.zeros((len(mrns),len(zscore_gain_headers)))
     for ix, age in enumerate(['-avg0to1','-avg1to3','-avg3to5','-avg5to7','-avg7to10','-avg10to13','-avg13to16','-avg16to19','-avg19to24']):
-        wts = features[:,headers.index('Vital: Wt'+age)] * 0.4535924
-        hts = features[:,headers.index('Vital: Ht'+age)] * 2.54
+        wts = features[:,headers.index('Vital: Wt'+age)]
+        hts = features[:,headers.index('Vital: Ht'+age)]
         genders = features[:,headers.index('Gender:1 female')]
-        zscores[:,ix] = zscore.zscore_wfl(genders, hts, wts)
+        zscores[:,ix] = zscore.zscore_wfl(genders, hts, wts, units='usa')
     for ix in range(len(zscore_gain_headers)):
         zscores_gain[:,ix] = zscores[:,ix+1] - zscores[:,ix]
 

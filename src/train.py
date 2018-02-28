@@ -46,7 +46,7 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
             print('set filter to h==', fstr)
         index_finder_filterstr = index_finder_filterstr + index_finder_filterstr_tmp
         print('total number of people who have: ', np.array(headers)[index_finder_filterstr_tmp], ' is:', ( x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i] ).sum() )
-    
+
     index_finder_filterstr = (index_finder_filterstr > 0)
 
     # if index_finder_filterstr.sum() > 1 and filterSTR.__class__ != list:
@@ -269,7 +269,7 @@ def autoencoder_impute(x, bin_ix, hidden_nodes=100):
     xfinal[:,non_zero_ix] = xout
     return xfinal
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, return_train_test_data=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
+def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, return_train_test_data=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
 
     """
     Train regression model for predicting obesity outcome
@@ -292,6 +292,12 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
     months_from: lower bound on child age for prediction
     months_to: upper bound on child age for prediction
 
+    outcome: default = 'obese'. obesity threshold for bmi/age percentile for outcome class.
+        Source: https://www.cdc.gov/obesity/childhood/defining.html
+        'overweight': 0.85 <= bmi percentile < 0.95
+        'obese': 0.95 <= bmi percentile <= 1.0
+        'extreme': 0.99 <= bmi percentile <= 1.0
+        NOTE: only required if creating the data at this stage
     modelType: default 'lasso'
         'lasso' - sklearn.linear_model.Lasso
         'mlp' - sklearn.neural_network.MLPRegressor
@@ -326,7 +332,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
         print('At least one required data not provided out of x1, y1, y1label, feature_headers, or mrns.')
         try:
             print('Creating data from the provided data dictionaries')
-            x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, mrnsForFilter=mrnForFilter)
+            x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, prediction=outcome, mrnsForFilter=mrnForFilter)
             original_data = (x1, y1, y1label, feature_headers, mrns)
         except:
             print('Not all of the required data was provided. Exiting analysis.')
@@ -619,13 +625,13 @@ def ROC_curve(recall_list, specificity_list, titles_list, title, show=True, save
 
 def print_charac_table(x2, y2, y2label, headers, table_features=['Diagnosis:', 'Maternal Diagnosis:', 'Maternal-birthplace:', 'Maternal-marriageStatus:', 'Maternal-nationality:', 'Maternal-race:', 'Maternal-ethnicity:', 'Maternal-Language:', 'Vital:', 'Gender']):
     """
-    Computing and printing to standard output, a characteristics table including various factors. Does not return anything. 
+    Computing and printing to standard output, a characteristics table including various factors. Does not return anything.
     #### PARAMETERS ####
     x2: numpy matrix of size N x D where D is the number of features and N is number of samples. Can contain integer and float variables.
     y2: numpy matrix of size N where N is number of samples. Contains float outcomes
     y2label: numpy matrix of size N where N is number of samples. Contains Bool or binary outcomes.
     headers: list of length D, of D string description for each column in x2
-    table_features: list of types of features that we are interested in reporting in the characteristics table. 
+    table_features: list of types of features that we are interested in reporting in the characteristics table.
     """
     from scipy.stats import norm
     y2pos_ix = (y2label > 0)
@@ -643,24 +649,24 @@ def print_charac_table(x2, y2, y2label, headers, table_features=['Diagnosis:', '
                 He = sum((y2label == 0) & (x2[:,ix] != 0)) * 1.0
                 Dn = sum((y2label > 0) & (x2[:,ix] == 0)) * 1.0
                 Hn = sum((y2label == 0) & (x2[:,ix] == 0)) * 1.0
-                OR = (De/He)/(Dn/Hn) 
+                OR = (De/He)/(Dn/Hn)
                 OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
                 OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
-                RR = (De/(De+He))/(Dn/(Dn+Hn)) 
-                
+                RR = (De/(De+He))/(Dn/(Dn+Hn))
+
                 md = x2[ix_total_pos,:][:,ix].mean() - x2[ix_total_neg,:][:,ix].mean()
                 se = np.sqrt( np.var(x2[ix_total_pos,:][:,ix]) / len(x2[ix_total_pos,:][:,ix]) + np.var(x2[ix_total_neg,:][:,ix])/len(x2[ix_total_neg,:][:,ix]))
                 lcl, ucl = md-2*se, md+2*se
                 z = md/se
-                
+
                 pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
-                
+
                 print(h + ' | {0:4.0f} | {1:4.3f} ({2:4.3f}) | {3:4.0f} | {4:4.3f} ({5:4.3f}) | {6:4.0f} | {7:4.3f} ({8:4.3f}) | {9:4.3f} ({10:4.3f}, {11:4.3f}) | {12:4.3f} | '. format(\
                 ix_total.sum(), x2[ix_total,:][:,ix].mean(), x2[ix_total,:][:,ix].std(), \
-                ix_total_pos.sum(), x2[ix_total_pos,:][:,ix].mean() if not(bin_indicator) else 0, x2[ix_total_pos,:][:,ix].std() if not(bin_indicator) else 0, 
+                ix_total_pos.sum(), x2[ix_total_pos,:][:,ix].mean() if not(bin_indicator) else 0, x2[ix_total_pos,:][:,ix].std() if not(bin_indicator) else 0,
                 ix_total_neg.sum(), x2[ix_total_neg,:][:,ix].mean() if not(bin_indicator) else 0,  x2[ix_total_neg,:][:,ix].std() if not(bin_indicator) else 0,
-                OR if bin_indicator else 0, OR_low if bin_indicator else 0, OR_high if bin_indicator else 0, 
-                RR if bin_indicator else 0, 
+                OR if bin_indicator else 0, OR_low if bin_indicator else 0, OR_high if bin_indicator else 0,
+                RR if bin_indicator else 0,
                 ) + str(pvalue))
 
 
