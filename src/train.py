@@ -1,3 +1,4 @@
+import os
 import config as config_file
 import pandas as pd
 import pickle
@@ -13,6 +14,7 @@ import outcome_def_pediatric_obesity
 import build_features
 import random
 from sklearn import metrics
+from scipy.stats import norm
 from sklearn.preprocessing import Imputer
 random.seed(2)
 
@@ -348,6 +350,11 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
     ix_filter, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh)
 
     print_charac_table(x2, y2, y2label, feature_headers)
+    newdir = time.strftime("table_stats_%Y%m%d_")+str(months_from)+'to'+str(months_to)+'months_'+str(agex_low)+'to'+str(agex_high)+'years'
+    if not os.path.exists(newdir):
+        os.mkdir(newdir)
+    get_stat_table(x2, y2, y2label, feature_headers, folder=newdir)
+
 
     if do_impute or do_normalize or add_time:
         x2, mux, stdx, bin_ix, unobserved  = normalize(x2, bin_ix=bin_ix)
@@ -633,7 +640,6 @@ def print_charac_table(x2, y2, y2label, headers, table_features=['Diagnosis:', '
     headers: list of length D, of D string description for each column in x2
     table_features: list of types of features that we are interested in reporting in the characteristics table.
     """
-    from scipy.stats import norm
     y2pos_ix = (y2label > 0)
     print(' Characteristics Table')
     print(' Variable | Total N | Total Average(SD) | Pos N | Pos Average (SD) | Neg N | Neg Average (SD) | Odds Ratio (low, high) | Relative Risk | p-value for OR')
@@ -668,6 +674,191 @@ def print_charac_table(x2, y2, y2label, headers, table_features=['Diagnosis:', '
                 OR if bin_indicator else 0, OR_low if bin_indicator else 0, OR_high if bin_indicator else 0,
                 RR if bin_indicator else 0,
                 ) + str(pvalue))
+
+def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m%d_%H:%M")):
+    """
+    Essentially the same as "print_charac_table", but saves tables required for reporting to two csv files called
+    'summary_stats_t1.csv' and summary_stats_t2.csv in the designated folder.
+    #### PARAMETERS ####
+    x: numpy matrix of size N x D where D is the number of features and N is number of samples. Can contain integer and float variables.
+    y: numpy matrix of size N where N is number of samples. Contains float outcomes
+    ylabel: numpy matrix of size N where N is number of samples. Contains Bool or binary outcomes.
+    headers: list of length D, of D string description for each column in x2
+    folder: default = time.strftime("table_stats_%Y%m%d_%H:%M/"). Folder where the two csv files will be saved.
+    """
+    if type(headers) == np.ndarray:
+        headers = headers.tolist()
+    elif type(headers) == tuple:
+        headers = list(headers)
+    elif type(headers) != list:
+        raise ValueError('"headers" should be a list!')
+
+    headers1 = ['Variable','Total N','Pos N','Neg N','Odds Ratio', 'Odds Ratio Low', 'Odds Ratio High','Relative Risk','p-value for OR']
+    categories = ['Maternal Ethnicity','Maternal Race','Maternal Marriage Status','Maternal Birthplace', 'Maternal Diagnosis','Infant Diagnosis']
+    features1 = {
+        'Gender':{
+            'Male':['Gender:0 male'],
+            'Female':['Gender:1 female']
+        },
+        'Maternal Ethnicity':{
+            'Not Hispanic/Latio':['Maternal-ethnicity:NOT HISPANIC/LATINO'],
+            'Hispanic/Latino':['Maternal-ethnicity:HISPANIC/LATINO'],
+            'Other':['Maternal-ethnicity:OTHER']
+        },
+        'Maternal Race':{
+            'Asian':['Maternal-race:ASIAN'],
+            'Unknown/No Response':['Maternal-race:UNKNOWN/NO RESPONSE'],
+            'Multiracial':['Maternal-race:MULTIRACIAL'],
+            'Caucasian/White':['Maternal-race:CAUCASIAN/WHITE'],
+            'African Amer/Black':['Maternal-race:AFRICAN AMER/BLAC']
+         },
+         'Maternal Marriage Status':{
+            'Divorced':['Maternal-marriageStatus:DIVORCED'],
+            'Partnered':['Maternal-marriageStatus:PARTNERED'],
+            'Married':['Maternal-marriageStatus:MARRIED'],
+            'Single':['Maternal-marriageStatus:SINGLE']
+         },
+         'Maternal Birthplace':{
+            'China':['Maternal-birthplace:CHINA'],
+            'Dominican Republic':['Maternal-birthplace:DOMINICAN REPUBLIC'],
+            'Puerto Rico':['Maternal-birthplace:PUERTO RICO'],
+            'Trinidad':['Maternal-birthplace:TRINIDAD'],
+            'Elsalvador':['Maternal-birthplace:ELSALVADOR'],
+            'Ecuador':['Maternal-birthplace:ECUADOR'],
+            'United States':['Maternal-birthplace:UNITED STATES'],
+            'Guatemala':['Maternal-birthplace:GUATEMALA'],
+            'Honduras':['Maternal-birthplace:HONDURAS'],
+            'Grenada':['Maternal-birthplace:GRENADA'],
+            'Peru':['Maternal-birthplace:PERU'],
+            'Haiti':['Maternal-birthplace:HAITI'],
+            'Mexico':['Maternal-birthplace:MEXICO']
+         },
+         'Maternal Diagnosis':{
+             'Nutritional diagnosis':['Maternal Diagnosis:9ccs52:Nutrit defic','Maternal Diagnosis:10ccs52:Nutrit defic'],
+             'Diabetes Mellitus in pregnancy':['Maternal Diagnosis:9ccs186:DM in preg','Maternal Diagnosis:10ccs186:DM in preg'],
+             'Diabetes Mellitus without complications':[['Maternal Diagnosis:9ccs186:DM in preg','Maternal Diagnosis:10ccs186:DM in preg'],
+                ['Maternal Diagnosis:9ccs195:Ot compl bir','Maternal Diagnosis:10ccs195:Ot compl bir']],
+             'Hypertension in pregnancy':['Maternal Diagnosis:9ccs183:HTN in preg','Maternal Diagnosis:10ccs183:HTN in preg'],
+             'Complications at birth':['Maternal Diagnosis:9ccs195:Ot compl bir','Maternal Diagnosis:10ccs195:Ot compl bir'],
+             'OB-related perin trauma':['Maternal Diagnosis:9ccs193:OB-related perin trauma','Maternal Diagnosis:10ccs193:OB-related perin trauma'],
+             'Pelvic obstruction':['Maternal Diagnosis:9ccs188:Pelvic obstr','Maternal Diagnosis:10ccs188:Pelvic obstr']
+         },
+         'Infant Diagnosis':{'Nutritional diagnosis':['Newborn Diagnosis:9ccs52:Nutrit defic','Newborn Diagnosis:10ccs52:Nutrit defic'],
+             'Epilepsy/convulsions':['Newborn Diagnosis:9ccs83:Epilepsy/cnv','Newborn Diagnosis:10ccs83:Epilepsy/cnv'],
+             'Liver Diseases':['Newborn Diagnosis:9ccs151:Oth liver dx','Newborn Diagnosis:10ccs151:Oth liver dx'],
+             'Skin Diseases':['Newborn Diagnosis:9ccs198:Ot infl skin','Newborn Diagnosis:10ccs198:Ot infl skin'],
+             'Kidney Diseases':['Newborn Diagnosis:9ccs161:Ot dx kidney','Newborn Diagnosis:10ccs161:Ot dx kidney'],
+             'Circulatory Diseases':['Newborn Diagnosis:9ccs117:Ot circul dx','Newborn Diagnosis:10ccs117:Ot circul dx'],
+             'Pneumonia':['Newborn Diagnosis:9ccs129:Asp pneumon','Newborn Diagnosis:10ccs129:Asp pneumon']
+                             }
+    }
+    headers2 = ['Variable','Total N','Total Average', 'Total SD','Pos N','Pos Average', 'Pos SD','Neg N','Neg Average', 'Neg SD','p-value']
+    features2 = ['Vital: Wt for Len Percentile-avg19to24','Vital: BMI-avg19to24','Vital: Wt for Len Percentile-avg16to19','Vital: BMI-avg16to19']
+
+    df1 = []
+    for k in features1.keys():
+        row = [k] + ['']*(len(headers1)-1)
+        df1.append(row)
+        for kk in features1[k].keys():
+            if len(features1[k][kk]) == 1:
+                col_ix = headers.index(features1[k][kk][0])
+                bin_indicator = x[:,col_ix].max()==1 and x[:,col_ix].min()==0
+                ix_total = (x[:,col_ix] != 0).sum()
+                ix_total_pos = (ylabel > 0) & (x[:,col_ix] != 0)
+                ix_total_neg = (ylabel == 0) & (x[:,col_ix] != 0)
+                De = sum((ylabel > 0) & (x[:,col_ix] != 0)) * 1.0
+                He = sum((ylabel == 0) & (x[:,col_ix] != 0)) * 1.0
+                Dn = sum((ylabel > 0) & (x[:,col_ix] == 0)) * 1.0
+                Hn = sum((ylabel == 0) & (x[:,col_ix] == 0)) * 1.0
+                OR = (De/He)/(Dn/Hn)
+                OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
+                OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
+                RR = (De/(De+He))/(Dn/(Dn+Hn))
+
+                md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
+                se = np.sqrt(np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
+                lcl, ucl = md-2*se, md+2*se
+                z = md/se
+
+                pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+                row = [kk, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR, pvalue]
+                df1.append(row)
+            else:
+                if type(features1[k][kk][0]) != list:
+                    xx = np.zeros((x.shape[0]))
+                    bin_indicator = all(((x[:,headers.index(f)].max()==1) & (x[:,headers.index(f)].min()==0)) or (x[:,headers.index(f)].std()==0) for f in features1[k][kk])
+                    for f in features1[k][kk]:
+                        xx += x[:,headers.index(f)]
+                    if bin_indicator:
+                        xx[xx > 1] = 1
+                else:
+                    # should be two lists. first: features that should exist. second: features that should not exist
+                    xx_diag = np.zeros((x.shape[0]))
+                    xx_comp = np.zeros((x.shape[0]))
+                    bin_indicator = all(((x[:,headers.index(f)].max()==1) & (x[:,headers.index(f)].min()==0)) or (x[:,headers.index(f)].std()==0) for f in features1[k][kk][0])
+                    for f in features1[k][kk][0]:
+                        col_ix = headers.index(f)
+                        xx_diag += x[:,col_ix]
+                    for f in features1[k][kk][1]:
+                        xx_comp += x[:,headers.index(f)]
+                    xx = (xx_diag != 0) & (xx_comp == 0)
+                    if bin_indicator:
+                        xx[xx > 1] = 1
+                ix_total = xx
+                ix_total_pos = (ylabel > 0) & (xx != 0)
+                ix_total_neg = (ylabel == 0) & (xx != 0)
+                De = sum((ylabel > 0) & (xx != 0)) * 1.0
+                He = sum((ylabel == 0) & (xx != 0)) * 1.0
+                Dn = sum((ylabel > 0) & (xx == 0)) * 1.0
+                Hn = sum((ylabel == 0) & (xx == 0)) * 1.0
+                OR = (De/He)/(Dn/Hn)
+                OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
+                OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
+                RR = (De/(De+He))/(Dn/(Dn+Hn))
+
+                md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
+                se = np.sqrt( np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
+                lcl, ucl = md-2*se, md+2*se
+                z = md/se
+
+                pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+                row = [kk, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR, pvalue]
+                df1.append(row)
+
+    df2 = []
+    for f in features2:
+        col_ix = headers.index(f)
+        bin_indicator = x[:,col_ix].max()==1 and x[:,col_ix].min()==0
+        ix_total = (x[:,col_ix] != 0)
+        ix_total_pos = (ylabel > 0) & (x[:,col_ix] != 0)
+        ix_total_neg = (ylabel == 0) & (x[:,col_ix] != 0)
+        De = sum((ylabel > 0) & (x[:,col_ix] != 0)) * 1.0
+        He = sum((ylabel == 0) & (x[:,col_ix] != 0)) * 1.0
+        Dn = sum((ylabel > 0) & (x[:,col_ix] == 0)) * 1.0
+        Hn = sum((ylabel == 0) & (x[:,col_ix] == 0)) * 1.0
+        OR = (De/He)/(Dn/Hn)
+        OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
+        OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
+        RR = (De/(De+He))/(Dn/(Dn+Hn))
+
+        md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
+        se = np.sqrt( np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
+        lcl, ucl = md-2*se, md+2*se
+        z = md/se
+
+        pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+        row = [f, ix_total.sum(), x[ix_total, col_ix].mean(), x[ix_total, col_ix].std(),
+               ix_total_pos.sum(), x[ix_total_pos, col_ix].mean(), x[ix_total_pos, col_ix].std(),
+               ix_total_neg.sum(), x[ix_total_neg, col_ix].mean(), x[ix_total_neg, col_ix].std(), pvalue]
+        df2.append(row)
+
+    df1 = pd.DataFrame(df1, columns=headers1)
+    df1.replace(to_replace=np.nan, value=0, inplace=True)
+    df2 = pd.DataFrame(df2, columns=headers2)
+    df2.replace(to_replace=np.nan, value=0, inplace=True)
+
+    df1.to_csv(folder+'/summary_stats_t1.csv')
+    df2.to_csv(folder+'/summary_stats_t2.csv')
 
 
 if __name__=='__main__':
