@@ -1,9 +1,15 @@
+import sys
+import time
 import pickle
 import numpy as np
 import pandas as pd
 
 def main():
-    df = pd.read_csv('/Volumes/CPO/Environment data/DB_Geocoding_Updated_wBlocks_Cleaned_wgs84.csv')
+    """
+    Converts csv file of lat/long pairs to dictionary of mrns with geocoded address information and
+    saves as a pickle file. Run in the terminal with input csv file.
+    """
+    df = pd.read_csv(sys.argv[1])
 
     lat_lon_dic = {}
     dfv = df.values
@@ -41,7 +47,8 @@ def main():
         lat_lon_dic[mrn]['lon'] = dfv[ix,ix_x]
         lat_lon_dic[mrn]['zip'] = dfv[ix,ix_zip]
 
-    pickle.dump(lat_lon_dic, open('/Volumes/CPO/ObesityPY/python objects/lat_lon_data_20180305.pkl', 'wb'))
+    fname = 'lat_lon_data_' + time.strftime("%Y%m%d") + '.pkl'
+    pickle.dump(lat_lon_dic, open('/Volumes/CPO/ObesityPY/python objects/'+fname, 'wb'))
 
 if __name__ == '__main__':
     main()
