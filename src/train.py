@@ -1,23 +1,27 @@
 import os
-import config as config_file
-import pandas as pd
-import pickle
 import re
+import time
+import pickle
+import random
+import zscore
 import matplotlib
+import build_features
+import numpy as np
+import pandas as pd
+import config as config_file
 matplotlib.use('TkAgg')
 import matplotlib.pylab as plt
-import time
-from datetime import timedelta
-from dateutil import parser
-import numpy as np
 import outcome_def_pediatric_obesity
-import build_features
-import random
 from sklearn import metrics
 from scipy.stats import norm
 from sklearn.preprocessing import Imputer
+from dateutil import parser
+from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 random.seed(2)
 
+g_wfl = np.loadtxt(config_file.wght4leng_girl)
+b_wfl = np.loadtxt(config_file.wght4leng_boy)
 
 def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentile=False, mrns=[], filterSTRThresh=[]):
     if filterSTR.__class__ == list:
@@ -631,6 +635,108 @@ def ROC_curve(recall_list, specificity_list, titles_list, title, show=True, save
     if show:
         plt.show()
     return
+
+def plot_growth_curve(data, mrn, key, readings='us', save_name=None, dpi=96, hide_mrn=False):
+    """
+    data: data dictionary containing ht/wt data
+    mrn: default = None; use if defining patient to plot by mrn
+    key: key to use for accessing the patient's information in the data dictionary. If mrn is provided, then
+        this field is not used.
+    readings: default = 'us'
+        'us': ht/wt in inches/pounds
+        'metric': ht/wt in centimeters/kilograms
+    save_name: default = None; provide a <path/file_name.png> to save the plot.
+    dpi: default = 96; dpi setting for saving output
+    hide_mrn: default = False; place the mrn in the title of the plot. Use False if sharing outside
+    """
+
+    cols = ['Length','L','M','S','P01','P1','P3','P5','P10','P15','P25','P50','P75','P85','P90','P95','P97','P99','P999']
+    cols_to_use = ['P01','P1','P3','P5','P10','P25','P50','P75','P90','P95','P97','P99','P999']
+    lower = ['P01','P1','P3','P5','P10','P25']
+    upper = ['P75','P90','P95','P97','P99','P999']
+
+    # Get the data dictionary key if mrn is provided
+    if mrn != None:
+        for k in data.keys():
+            if data[k]['mrn'] == mrn:
+                key = k
+                break
+    # Get the mrn if the data dictionary key is provided
+    else:
+        mrn = data[key]['mrn']
+
+    cutoff =  data[key]['bdate'] + relativedelta(years=+2)
+    gender = data[key]['gender']
+    wfl = b_wfl if gender == 0 else g_wfl
+
+    # Create the height weight points for plotting
+    if readings == 'us':
+        ht_wt = {l[0]:[l[1]*2.54, 0] for l in data[key]['vitals']['Ht'] if l[0] < cutoff}
+    elif readings == 'metric':
+        ht_wt = {l[0]:[l[1], 0] for l in data[key]['vitals']['Ht'] if l[0] < cutoff}
+    else:
+        raise ValueError('"readings" need to be "metric" or "us"!')
+    for w in data[key]['vitals']['Wt']:
+        if w[0] >= cutoff:
+            continue
+        try:
+            ht_wt[w[0]][1] = w[1]*0.4535924 if readings == 'us' else w[1]
+        except:
+            ht_wt[w[0]] = [0, w[1]*0.4535924] if readings == 'us' else [0, w[1]]
+
+    # Plot the WHO weight for length growth curves
+    plt.figure(figsize=(8,8))
+    for i in [cols.index(x) for x in cols_to_use]:
+        if i in [cols.index(x) for x in lower]:
+            c = 'cornflowerblue'
+        elif i == cols.index('P50'):
+            c = 'black'
+        elif i in [cols.index(x) for x in upper]:
+            c = 'crimson'
+        plt.plot(wfl[:,0], wfl[:,i], linewidth=0.8, color=c)
+        plt.text(wfl[:,0][-1], wfl[:,i][-1], cols[i])
+
+    if gender == 0:
+        if hide_mrn:
+            plt.title('Boys Weight for Length Z Score - Sample Patient', fontsize=16)
+        else:
+            plt.title('Boys Weight for Length Z Score - Patient '+str(mrn), fontsize=16)
+    else:
+        if hide_mrn:
+            plt.title('Girls Weight for Length Z Score - Sample Patient', fontsize=16)
+        else:
+            plt.title('Girls Weight for Length Z Score - Patient '+str(mrn), fontsize=16)
+
+    hts = []
+    wts = []
+    for k in sorted(ht_wt):
+        vals = ht_wt[k]
+        if any(v==0 for v in vals):
+            continue
+        hts.append(vals[0])
+        wts.append(vals[1])
+
+    plt.plot(hts, wts, linestyle='--', color='gray', alpha=0.7)
+    for k in sorted(ht_wt):
+        vals = ht_wt[k]
+        if any(v==0 for v in vals):
+            continue
+        diff = relativedelta(k, data[key]['bdate'])
+        lab = '{0:2.1f} months, Z Score: {1:1.1f}'.format((diff.years*12)+diff.months+(diff.days/30), zscore.zscore_wfl(gender, vals[0], vals[1]))
+        plt.scatter(vals[0], vals[1], marker='+', s=60, label=lab)
+
+    plt.legend(fontsize=10)
+    plt.xlabel('Length (in cm)', fontsize=14)
+    plt.ylabel('Weight (in kg)', fontsize=14)
+    plt.xlim((45,114))
+    plt.ylim((0,25))
+    plt.xticks(np.arange(45,115,5))
+    plt.yticks(np.arange(0,27.5,2.5))
+    plt.grid(True, linestyle='--')
+    plt.tight_layout()
+    if save_name != None:
+        plt.savefig(save_name, dpi=dpi)
+    plt.show()
 
 def print_charac_table(x2, y2, y2label, headers, table_features=['Diagnosis:', 'Maternal Diagnosis:', 'Maternal-birthplace:', 'Maternal-marriageStatus:', 'Maternal-nationality:', 'Maternal-race:', 'Maternal-ethnicity:', 'Maternal-Language:', 'Vital:', 'Gender']):
     """
