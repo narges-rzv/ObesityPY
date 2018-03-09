@@ -18,7 +18,7 @@ def load_WHO_refs(girls_inputfile='None', boys_inputfile='None'):
     if girls_inputfile == 'None':
         girls_inputfile = config.wght4leng_girl
     if boys_inputfile == 'None':
-        boys_inputfile = config.wght4leng_girl
+        boys_inputfile = config.wght4leng_boy
     global WHO_percentiles
     for ix, inputfile in enumerate([boys_inputfile, girls_inputfile]):
         # columns of inputfile: Length,L,M,S,P01,P1,P3,P5,P10,P15,P25,P50,P75,P85,P90,P95,P97,P99,P999
