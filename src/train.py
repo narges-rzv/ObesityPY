@@ -23,7 +23,7 @@ random.seed(2)
 g_wfl = np.loadtxt(config_file.wght4leng_girl)
 b_wfl = np.loadtxt(config_file.wght4leng_boy)
 
-def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentile=False, mrns=[], filterSTRThresh=[]):
+def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentile=False, mrns=[], filterSTRThresh=[], print_out=True):
     if filterSTR.__class__ == list:
         pass
     else:
@@ -35,8 +35,10 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
     if len(filterSTRThresh) == 0 :
         filterSTRThresh = [0.5]*len(filterSTR) #make it binary, as before.
 
-    print('x shape:', x.shape, 'num features:',len(headers))
-    print('Original cohort size is:', x.shape[0])
+    if print_out:
+        print('Original cohort size is:', x.shape[0], 'num features:',len(headers))
+    else:
+        print_statements = 'Original cohort size: {0:,d}, number of features: {1:,d}\n'.format(x.shape[0], len(headers))
 
     index_finder_anyvital = np.array([h.startswith('Vital') for h in headers])
     index_finder_maternal = np.array([h.startswith('Maternal') for h in headers])
@@ -47,11 +49,19 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
         # print(index_finder_filterstr + np.array([h.startswith(fstr) for h in headers]))
         index_finder_filterstr_tmp = np.array([h.startswith(fstr) for h in headers])
         if index_finder_filterstr_tmp.sum() > 1:
-            print('alert: filter returned more than one feature:', fstr)
-            index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
-            print('set filter to h==', fstr)
+            if print_out:
+                print('alert: filter returned more than one feature:', fstr)
+                index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
+                print('set filter to h==', fstr)
+            else:
+                print_statements += 'alert: filter returned more than one feature: ' + str(fstr) + '\n'
+                index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
+                print_statements += 'set filter to h==' + str(fstr) + '\n'
         index_finder_filterstr = index_finder_filterstr + index_finder_filterstr_tmp
-        print('total number of people who have: ', np.array(headers)[index_finder_filterstr_tmp], ' is:', ( x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i] ).sum() )
+        if print_out:
+            print('total number of people who have: ', np.array(headers)[index_finder_filterstr_tmp], ' is:', ( x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i] ).sum() )
+        else:
+            print_statements += 'total number of people who have: '+str(np.array(headers)[index_finder_filterstr_tmp])+' is: {0:,d}\n'.format((x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i]).sum())
 
     index_finder_filterstr = (index_finder_filterstr > 0)
 
@@ -63,10 +73,13 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
     # pdb.set_trace()
     if (len(filterSTR) != 0) and (percentile == False):
         ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()) & ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
-    print('total number of people who have a BMI measured:', sum((y > 10) & (y < 40)))
-    print('total number of people who have all filtered variables:', (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
-    print('total number of people who have maternal data available:', ((x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum() )
-    print('intersection of the three above is:', sum(ix))
+    if print_out:
+        print('total number of people who have a BMI measured:', sum((y > 10) & (y < 40)))
+        print('total number of people who have all filtered variables:', (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
+        print('total number of people who have maternal data available:', ((x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum() )
+        print('intersection of the three above is:', sum(ix))
+        print(str(ix.sum()) + ' patients selected..')
+        return ix, x[ix,:], y[ix], ylabel[ix], mrns[ix]
 
     # elif percentile == False:
     #     ix = (y > 10) & (y < 40) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1)
@@ -76,8 +89,13 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
     #     ix = (x[:,index_finder_filterstr].ravel() == True)
     # elif percentile == True:
     #     ix = (x[:,index_finder_filterstr].ravel() >= False)
-    print(str(ix.sum()) + ' patients selected..')
-    return ix, x[ix,:], y[ix], ylabel[ix], mrns[ix]
+    else:
+        print_statements += 'total number of people who have a BMI measured: {0:,d}\n'.format(sum((y > 10) & (y < 40)))
+        print_statements += 'total number of people who have all filtered variables: {0:,d}\n'.format((((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
+        print_statements += 'total number of people who have maternal data available: {0:,d}\n'.format(((x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum())
+        print_statements += 'intersection of the three above is: {0:,d}\n'.format(sum(ix))
+        print_statements += '{0:,d} patients selected..\n\n'.format(ix.sum())
+    return ix, x[ix,:], y[ix], ylabel[ix], mrns[ix], print_statements
 
 def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns):
     import sklearn
@@ -192,14 +210,23 @@ def normalize(x, filter_percentile_more_than_percent=5, mu=[], std=[], bin_ix=[]
     normed_x[abs(normed_x)>filter_percentile_more_than_percent] = 0
     return normed_x, mu, std, bin_ix, unobserved
 
-def variable_subset(x, varsubset, h):
-    print('subsetting variables that are only:', varsubset)
-    hix = np.array([hi.split(':')[0].strip() in varsubset or hi in varsubset for hi in h])
-    print('from ', x.shape[1] ,' variables to ', sum(hix))
-    x = x[:, hix]
-    h = np.array(h)[hix]
-    # print(h, x)
-    return x, h
+def variable_subset(x, varsubset, h, print_out=True):
+    if not print:
+        print_statements = 'subsetting variables that are only: ' + str(varsubset) + '\n'
+        hix = np.array([hi.split(':')[0].strip() in varsubset or hi in varsubset for hi in h])
+        print_statements += 'from {0:,d} variables to {1:,.2f}\n'.format(x.shape[1], sum(hix))
+        x = x[:, hix]
+        h = np.array(h)[hix]
+        # print(h, x)
+        return x, h, print_statements
+    else:
+        print('subsetting variables that are only:', varsubset)
+        hix = np.array([hi.split(':')[0].strip() in varsubset or hi in varsubset for hi in h])
+        print('from ', x.shape[1] ,' variables to ', sum(hix))
+        x = x[:, hix]
+        h = np.array(h)[hix]
+        # print(h, x)
+        return x, h
 
 def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, dist_type='eucledian', cross_valid=True, mux=None, stdx=None, do_impute=False, subset=[]):
     if isinstance(feature_headers, list):
@@ -216,13 +243,17 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2la
     trend_headers = ['Trend:'+str(i)+' -occ:'+str(cnt_clusters[i]) for i in range(0, len(centroids))]
     return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew
 
-def filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude):
+def filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude, print_out=True):
     ix_header = np.ones((len(corr_headers)), dtype=bool)
     for ind, item in enumerate(corr_headers):
         if (item in corr_vars_exclude) or sum([item.startswith(ii) for ii in corr_vars_exclude]) > 0 :
             ix_header[ind] = False
-    print(ix_header.sum())
-    return corr_headers[ix_header], corr_matrix[:,ix_header], ix_header
+    if print_out:
+        print(ix_header.sum())
+        return corr_headers[ix_header], corr_matrix[:,ix_header], ix_header
+    else:
+        print_statements = 'filtered correlated features to: {0:,d}'.format(ix_header.sum())
+        return corr_headers[ix_header], corr_matrix[:,ix_header], ix_header, print_statements
 
 def autoencoder_impute(x, bin_ix, hidden_nodes=100):
     try:
@@ -275,7 +306,124 @@ def autoencoder_impute(x, bin_ix, hidden_nodes=100):
     xfinal[:,non_zero_ix] = xout
     return xfinal
 
-def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, return_train_test_data=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, get_char_tables=False, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
+def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, return_train_test_data=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]), delay_print=False): #filterSTR='Gender:0 male'
+    """
+    Train regression model for predicting obesity outcome
+    #### PARAMETERS ####
+    For the below features if not using set value to {}
+    data_dic: data dictionary of newborns with each child's data as value for some provided key
+    data_dic_mom: data dictionary of maternal data at birth with child mrn as key and data as value
+    data_dic_hist_moms: historical maternal data dictionary with maternal mrn as the key and data as value
+    lat_lon_dic: geocoded data dictionary of maternal addresses
+    env_dic: aggregated census data
+    x1: data array
+    y1: data to be predicted
+    y1label: obesity label for each child
+    feature_headers: list of features that matches the column space of x1
+    mrns: list of mrns that matches that corresponds to x1
+
+    NOTE: the following four parameters must have matching values for creation of any precreated data sets (x1, y1, y1label, feature_headers, and mrns)
+    agex_low: lower bound on child age a prediction should be made from
+    agex_high: upper bound on child age a prediction should be made from
+    months_from: lower bound on child age for prediction
+    months_to: upper bound on child age for prediction
+
+    outcome: default = 'obese'. obesity threshold for bmi/age percentile for outcome class.
+        Source: https://www.cdc.gov/obesity/childhood/defining.html
+        'overweight': 0.85 <= bmi percentile < 0.95
+        'obese': 0.95 <= bmi percentile <= 1.0
+        'extreme': 0.99 <= bmi percentile <= 1.0
+        NOTE: only required if creating the data at this stage
+    percentile: default False; filter to ensure certain types of features exist for each data point
+    filterSTR: default ['Gender:1']; filter specific features to have vaules greater than 'filterSTRThresh' for each filterSTR
+    filterSTRThresh: default [0.5]; filter out data points with values less than the provided amount for each filterSTR feature
+    variablesubset: default []; use only specified list of feature(s) (can be exact match or feature category as long as each item is the start of a feature name)
+    variable_exclude: not used
+    num_clusters: default 16; number of kmeans clusters to use for timeseries data
+    num_iters: default 100; number of iterations for kmeans clusters for timeseries data
+    dist_type: default 'euclidean'; distance metric for kmeans clusters for timeseries data
+    corr_vars_exclude: default ['Vital']; features to exclude from correlation results
+    return_data_for_error_analysis: default False; return last trained model with data to analyze model errors
+    return_data: default False; return X, y, y_label, feature_headers, and mrns created in the data creation phase
+        NOTE: this is not the imputed, normalized, binarized, etc. data. 'feature_headers' still returned otherwise.
+    return_data_transformed: default False; if True and return_data==True the transformed data will be returned in place of the original, unaltered data set.
+    return_train_test_data: default False; if True and return_data==TRue the train and test data used in the final analysis will be returned for error analysis
+    do_impute: default 'True'; impute missing data
+    mrnForFilter: default []; filter data by mrn values
+    add_time: default False; use timeseries analyses
+    bin_ix: default []; list of binary features - will be determined if none provided
+    do_normalize: default True; normalize the data
+    binarize_diagnosis: default True; binarize any diagnosis features that are not already binary
+    get_char_tables: defaut False; save the Table 1 and 2 output to file
+    subset: default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]); used to determine timeseries subset
+    delay_print: default False; print everything at the end -- created for when creating data using multiprocessing and don't want jumbled results
+    """
+
+    if any([len(x)==0 for x in (x1,y1,y1label,feature_headers,mrns)]):
+        reporting = 'At least one required data not provided out of x1, y1, y1label, feature_headers, or mrns.\n'
+        try:
+            reporting += 'Creating data from the provided data dictionaries\n'
+            x1, y1, y1label, feature_headers, mrns = build_feature2.call_build_function(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, prediction=outcome, mrnsForFilter=mrnForFilter)
+            original_data = (x1, y1, y1label, feature_headers, mrns)
+        except:
+            reporting += 'Not all of the required data was provided. Exiting analysis.\n'
+            return
+    else:
+        reporting = 'Using pre-prepared data\n'
+
+    if binarize_diagnosis:
+        bin_ix = np.array([(h.startswith('Diagnosis:') or h.startswith('Maternal Diagnosis:') or h.startswith('Newborn Diagnosis:')) for h in feature_headers])
+        reporting += str(bin_ix.sum()) + ' features are binary\n'
+        x1[:,bin_ix] = (x1[:,bin_ix] > 0) * 1.0
+
+    ix_filter, x2, y2, y2label, mrns, print_statements = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh, print_out=not delay_print)
+    reporting += print_statements
+    if get_char_tables:
+        print_charac_table(x2, y2, y2label, feature_headers)
+        newdir = time.strftime("table_stats_%Y%m%d_")+str(months_from)+'to'+str(months_to)+'months_'+str(agex_low)+'to'+str(agex_high)+'years'
+        if not os.path.exists(newdir):
+            os.mkdir(newdir)
+        get_stat_table(x2, y2, y2label, feature_headers, folder=newdir)
+
+
+    if do_impute or do_normalize or add_time:
+        x2, mux, stdx, bin_ix, unobserved  = normalize(x2, bin_ix=bin_ix)
+
+    if do_impute:
+        x2 = autoencoder_impute(x2, bin_ix)
+
+    if add_time:
+        x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, dist_type, True, mux, stdx, do_impute, subset)
+    else:
+        centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = ['NaN']*7
+
+    corr_headers = np.array(feature_headers)
+    corr_matrix = np.corrcoef(x2.transpose())
+    corr_headers_filtered, corr_matrix_filtered, ix_corr_headers, print_statements = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude, print_out=not delay_print)
+    reporting += print_statements
+    reporting += 'corr matrix is filtered to size: '+ str(corr_matrix_filtered.shape) + '\n'
+
+    if len(variablesubset) != 0:
+        x2, feature_headers, print_statements, print_statements = variable_subset(x2, variablesubset, feature_headers, print_out=not delay_print)
+        reporting += print_statements
+
+    reporting += 'output is: average: {0:4.3f}, min: {1:4.3f}, max: {2:4.3f}\n'.format(y2.mean(), y2.min(), y2.max())
+    reporting += 'total patients: {0:,d}, positive: {1:,.2f}, negative: {2:,.2f}\n'.format(y2.shape[0], y2label.sum(), y2.shape[0]-y2label.sum())
+    reporting += 'normalizing output\n'
+    y2 = (y2-y2.mean())/y2.std()
+
+    reporting += 'Predicting BMI at age: '+str(agex_low)+ ' to '+str(agex_high)+ ' years, from data in ages: '+ str(months_from)+' - '+str(months_to) + ' months\n'
+    if filterSTR != '':
+        reporting += 'filtering patients with: '+str(filterSTR)+'\n'
+
+    reporting += 'total size: {0:,d}'.format(ix_filter.sum())
+    print(reporting)
+    if (ix_filter.sum() < 50):
+        print('Not enough subjects. Next.')
+        return (filterSTR, [])
+    return x2, y2, y2label, mrns, ix_filter, feature_headers
+
+def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, return_train_test_data=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
 
     """
     Train regression model for predicting obesity outcome
@@ -332,72 +480,76 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
     do_normalize: default True; normalize the data
     binarize_diagnosis: default True; binarize any diagnosis features that are not already binary
     get_char_tables: defaut False; save the Table 1 and 2 output to file
+    feature_info: default True; output model feature characteristics post analysis
     subset: default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]); used to determine timeseries subset
     """
 
-    if any([len(x)==0 for x in (x1,y1,y1label,feature_headers,mrns)]):
-        print('At least one required data not provided out of x1, y1, y1label, feature_headers, or mrns.')
-        try:
-            print('Creating data from the provided data dictionaries')
-            x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, prediction=outcome, mrnsForFilter=mrnForFilter)
-            original_data = (x1, y1, y1label, feature_headers, mrns)
-        except:
-            print('Not all of the required data was provided. Exiting analysis.')
-            return
-    else:
-        print('Using pre-prepared data')
-
-    if binarize_diagnosis:
-        bin_ix = np.array([(h.startswith('Diagnosis:') or h.startswith('Maternal Diagnosis:') or h.startswith('Newborn Diagnosis:')) for h in feature_headers])
-        print(bin_ix.sum(), 'features are binary')
-        x1[:,bin_ix] = (x1[:,bin_ix] > 0) * 1.0
-
-    ix_filter, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh)
-
-    print_charac_table(x2, y2, y2label, feature_headers)
-    if get_char_tables:
-        newdir = time.strftime("table_stats_%Y%m%d_")+str(months_from)+'to'+str(months_to)+'months_'+str(agex_low)+'to'+str(agex_high)+'years'
-        if not os.path.exists(newdir):
-            os.mkdir(newdir)
-        get_stat_table(x2, y2, y2label, feature_headers, folder=newdir)
-
-
-    if do_impute or do_normalize or add_time:
-        x2, mux, stdx, bin_ix, unobserved  = normalize(x2, bin_ix=bin_ix)
-
-    if do_impute:
-        x2 = autoencoder_impute(x2, bin_ix)
-
-    if add_time:
-        x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, dist_type, True, mux, stdx, do_impute, subset)
-    else:
-        centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = ['NaN']*7
-
-    corr_headers = np.array(feature_headers)
-    corr_matrix = np.corrcoef(x2.transpose())
-    corr_headers_filtered, corr_matrix_filtered, ix_corr_headers = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
-    print('corr matrix is filtered to size', corr_matrix_filtered.shape)
-
-    if len(variablesubset) != 0:
-        x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
-
-    print ('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
-    print ('of the ', y2.shape[0], ' total positive labels are:', y2label.sum())
-    print ('normalizing output.'); y2 = (y2-y2.mean())/y2.std()
-
-    print ('Predicting BMI at age:'+str(agex_low)+ ' to '+str(agex_high)+ 'years, from data in ages:'+ str(months_from)+'-'+str(months_to) + ' months')
-    if filterSTR != '':
-        print ('filtering patients with: ', filterSTR)
-
-    print ('total size',ix_filter.sum())
-    if (ix_filter.sum() < 50):
-        print('Not enough subjects. Next.')
-        return (filterSTR, [])
+    # if any([len(x)==0 for x in (x1,y1,y1label,feature_headers,mrns)]):
+    #     print('At least one required data not provided out of x1, y1, y1label, feature_headers, or mrns.')
+    #     try:
+    #         print('Creating data from the provided data dictionaries')
+    #         x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, prediction=outcome, mrnsForFilter=mrnForFilter)
+    #         original_data = (x1, y1, y1label, feature_headers, mrns)
+    #     except:
+    #         print('Not all of the required data was provided. Exiting analysis.')
+    #         return
+    # else:
+    #     print('Using pre-prepared data')
+    #
+    # if binarize_diagnosis:
+    #     bin_ix = np.array([(h.startswith('Diagnosis:') or h.startswith('Maternal Diagnosis:') or h.startswith('Newborn Diagnosis:')) for h in feature_headers])
+    #     print(bin_ix.sum(), 'features are binary')
+    #     x1[:,bin_ix] = (x1[:,bin_ix] > 0) * 1.0
+    #
+    # ix_filter, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh)
+    #
+    # if get_char_tables:
+    #     print_charac_table(x2, y2, y2label, feature_headers)
+    #     newdir = time.strftime("table_stats_%Y%m%d_")+str(months_from)+'to'+str(months_to)+'months_'+str(agex_low)+'to'+str(agex_high)+'years'
+    #     if not os.path.exists(newdir):
+    #         os.mkdir(newdir)
+    #     get_stat_table(x2, y2, y2label, feature_headers, folder=newdir)
+    #
+    #
+    # if do_impute or do_normalize or add_time:
+    #     x2, mux, stdx, bin_ix, unobserved  = normalize(x2, bin_ix=bin_ix)
+    #
+    # if do_impute:
+    #     x2 = autoencoder_impute(x2, bin_ix)
+    #
+    # if add_time:
+    #     x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, dist_type, True, mux, stdx, do_impute, subset)
+    # else:
+    #     centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = ['NaN']*7
+    #
+    # corr_headers = np.array(feature_headers)
+    # corr_matrix = np.corrcoef(x2.transpose())
+    # corr_headers_filtered, corr_matrix_filtered, ix_corr_headers = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
+    # print('corr matrix is filtered to size', corr_matrix_filtered.shape)
+    #
+    # if len(variablesubset) != 0:
+    #     x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
+    #
+    # print ('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
+    # print ('of the ', y2.shape[0], ' total positive labels are:', y2label.sum())
+    # print ('normalizing output.'); y2 = (y2-y2.mean())/y2.std()
+    #
+    # print ('Predicting BMI at age:'+str(agex_low)+ ' to '+str(agex_high)+ 'years, from data in ages:'+ str(months_from)+'-'+str(months_to) + ' months')
+    # if filterSTR != '':
+    #     print ('filtering patients with: ', filterSTR)
+    #
+    # print ('total size',ix_filter.sum())
+    # if (ix_filter.sum() < 50):
+    #     print('Not enough subjects. Next.')
+    #     return (filterSTR, [])
 
     if modelType == 'lasso' or modelType == 'randomforest' or modelType == 'gradientboost' or modelType == 'lars':
         iters = 10
         model_weights_array = np.zeros((iters, x2.shape[1]), dtype=float)
         auc_test_list=np.zeros((iters), dtype=float); r2testlist = np.zeros((iters), dtype=float);
+        randix_track = np.zeros((int(x2.shape[0]*0.9), iters))
+        ix_train_track = np.zeros((int(int(x2.shape[0]*0.9)*2/3), iters))
+        ix_test_track = np.zeros((int(x2.shape[0]*0.9)-int(int(x2.shape[0]*0.9)*2/3), iters))
         for iteration in range(0, iters):
             randix = list(range(0, x2.shape[0]))
             random.shuffle(randix)
@@ -406,6 +558,11 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
             (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test) = train_regression(datax, datay, dataylabel, percentile, modelType, feature_headers, mrnx)
             model_weights_array[iteration, :] = model.coef_ if ((modelType == 'lasso') or (modelType == 'lars')) else model.feature_importances_
             auc_test_list[iteration] = auc_test; r2testlist[iteration] = r2test
+
+            randix_track[:,iteration] = randix
+            ix_train_track[:,iteration] = ix_train
+            ix_test_track[:,iteration] = ix_test
+
 
         model_weights = model_weights_array.mean(axis=0)
         model_weights_std = model_weights_array.std(axis=0)
@@ -518,17 +675,18 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
         if (low_OR > 1 or high_OR < 1): #or (weights[i]+terms_sorted[i]) < 0 or (weights[i]-terms_sorted[i]) > 0
             sig_headers.append(factors[i])
             star = '*'
-        print("{8} {3} | coef {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}] | OR_adj {9:4.3f} [{10:4.3f} {11:4.3f}] | occ: {4} | OR_unadj: {5:4.3f} [{6:4.3f} {7:4.3f}] | indivs AUC:{12:4.3f}".format(weights[i], weights[i]-terms_sorted[i], weights[i]+terms_sorted[i], factors[i], occurences[i], oratio, low_OR, high_OR, star, np.exp(weights[i]), np.exp(weights[i]-terms_sorted[i]), np.exp(weights[i]+terms_sorted[i]), feature_auc_indiv))
-        print(corr_string)
+        if feature_info:
+            print("{8} {3} | coef {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}] | OR_adj {9:4.3f} [{10:4.3f} {11:4.3f}] | occ: {4} | OR_unadj: {5:4.3f} [{6:4.3f} {7:4.3f}] | indivs AUC:{12:4.3f}".format(weights[i], weights[i]-terms_sorted[i], weights[i]+terms_sorted[i], factors[i], occurences[i], oratio, low_OR, high_OR, star, np.exp(weights[i]), np.exp(weights[i]-terms_sorted[i]), np.exp(weights[i]+terms_sorted[i]), feature_auc_indiv))
+            print(corr_string)
 
     for k in feature_categories:
         print (k, ":", feature_categories[k])
 
     if return_data:
         if return_data_transformed and return_train_test_data:
-            return (model, x2, y2, y2label, ix_filter, randix, ix_train, ix_test, feature_headers, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
+            return (model, x2, y2, y2label, ix_filter, randix_track, ix_train_track, ix_test_track, feature_headers, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
         elif return_data_transformed and not return_train_test_data:
-            return (model, x2, y2, y2label, ix_filter, randix, ix_train, ix_test, feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
+            return (model, x2, y2, y2label, ix_filter, randix_track, ix_train_track, ix_test_track, feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
         elif not return_data_transformed and return_train_test_data:
             return (model, xtrain, ytrain, ytrainlabel, mrnstrain, xtest, ytest, ytestlabel, mrnstest, feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
         else:
@@ -610,7 +768,7 @@ def prec_rec_curve(recall_list, precision_list, titles_list, title, show=True, s
         plt.show()
     return
 
-def ROC_curve(recall_list, specificity_list, titles_list, title, show=True, save=False):
+def ROC_curve(recall_list, specificity_list, titles_list, title, show=True, save=False, dpi=96):
     """
     Receiver Operator Curves for multiple analyses to compare results
     #### PARAMETERS ####
@@ -619,6 +777,7 @@ def ROC_curve(recall_list, specificity_list, titles_list, title, show=True, save
     titles_list: list of legend labels for each model
     title: title of plot and filename if saving
     save: binary to indicate if plot should be saved
+    dpi: default = 96; dpi setting for saving output
     """
     plt.figure(figsize=(10,10))
     for ix in range(len(prec_total)):
@@ -631,7 +790,7 @@ def ROC_curve(recall_list, specificity_list, titles_list, title, show=True, save
     plt.title(title)
     plt.grid()
     if save:
-        plt.savefig(title+'.png', dpi=300)
+        plt.savefig(title+'.png', dpi=dpi)
     if show:
         plt.show()
     return
@@ -801,6 +960,9 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
     elif type(headers) != list:
         raise ValueError('"headers" should be a list!')
 
+    y = y.ravel()
+    ylabel = ylabel.ravel()
+
     headers1 = ['Variable','Total N','Pos N','Neg N','Odds Ratio', 'Odds Ratio Low', 'Odds Ratio High','Relative Risk','p-value for OR']
     categories = ['Maternal Ethnicity','Maternal Race','Maternal Marriage Status','Maternal Birthplace', 'Maternal Diagnosis','Infant Diagnosis']
     features1 = {
@@ -851,13 +1013,13 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
              'OB-related perin trauma':['Maternal Diagnosis:9ccs193:OB-related perin trauma','Maternal Diagnosis:10ccs193:OB-related perin trauma'],
              'Pelvic obstruction':['Maternal Diagnosis:9ccs188:Pelvic obstr','Maternal Diagnosis:10ccs188:Pelvic obstr']
          },
-         'Infant Diagnosis':{'Nutritional diagnosis':['Newborn Diagnosis:9ccs52:Nutrit defic','Newborn Diagnosis:10ccs52:Nutrit defic'],
-             'Epilepsy/convulsions':['Newborn Diagnosis:9ccs83:Epilepsy/cnv','Newborn Diagnosis:10ccs83:Epilepsy/cnv'],
-             'Liver Diseases':['Newborn Diagnosis:9ccs151:Oth liver dx','Newborn Diagnosis:10ccs151:Oth liver dx'],
-             'Skin Diseases':['Newborn Diagnosis:9ccs198:Ot infl skin','Newborn Diagnosis:10ccs198:Ot infl skin'],
-             'Kidney Diseases':['Newborn Diagnosis:9ccs161:Ot dx kidney','Newborn Diagnosis:10ccs161:Ot dx kidney'],
-             'Circulatory Diseases':['Newborn Diagnosis:9ccs117:Ot circul dx','Newborn Diagnosis:10ccs117:Ot circul dx'],
-             'Pneumonia':['Newborn Diagnosis:9ccs129:Asp pneumon','Newborn Diagnosis:10ccs129:Asp pneumon']
+         'Infant Diagnosis':{'Nutritional diagnosis':['Diagnosis:9ccs52:Nutrit defic','Diagnosis:10ccs52:Nutrit defic'],
+             'Epilepsy/convulsions':['Diagnosis:9ccs83:Epilepsy/cnv','Diagnosis:10ccs83:Epilepsy/cnv'],
+             'Liver Diseases':['Diagnosis:9ccs151:Oth liver dx','Diagnosis:10ccs151:Oth liver dx'],
+             'Skin Diseases':['Diagnosis:9ccs198:Ot infl skin','Diagnosis:10ccs198:Ot infl skin'],
+             'Kidney Diseases':['Diagnosis:9ccs161:Ot dx kidney','Diagnosis:10ccs161:Ot dx kidney'],
+             'Circulatory Diseases':['Diagnosis:9ccs117:Ot circul dx','Diagnosis:10ccs117:Ot circul dx'],
+             'Pneumonia':['Diagnosis:9ccs129:Asp pneumon','Diagnosis:10ccs129:Asp pneumon']
                              }
     }
     headers2 = ['Variable','Total N','Total Average', 'Total SD','Pos N','Pos Average', 'Pos SD','Neg N','Neg Average', 'Neg SD','p-value']
