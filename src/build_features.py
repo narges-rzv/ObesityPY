@@ -1151,6 +1151,79 @@ def build_feature_num_visits_index():
     feature_headers = ['Number of Visits']
     return feature_index, feature_headers
 
+def get_obesity_label(pct, bmi, age, gender):
+    """
+    Returns the obesity label as underweight, normal, overweight, obese, class I or class II severe obesity
+    """
+    if 0 <= pct < 0.05:
+        return 'underweight'
+    elif 0.05 <= pct < 0.85:
+        return 'normal'
+    elif 0.85 <= pct < 0.95:
+        return 'overweight'
+    elif 0.95 <= pct < 1:
+        if zscore.severe_obesity_bmi(gender, age, bmi, unit='years', severity=2):
+            return 'class II severe obesity'
+        elif zscore.severe_obesity_bmi(gender, age, bmi, unit='years', severity=1):
+            return 'class I severe obesity'
+        else:
+            return 'obese'
+
+def get_final_bmi(data_dic, agex_low, agex_high, mrnsForFilter=[], filter=True):
+    """
+    Function to get the distinct bmi percentile readings for predictions.
+    Returns outcome percentiles and labels
+    #### PARAMETERS ####
+    data_dic: dictionary of patient data
+    agex_low: low age range for outcome prediction
+    agex_high: high age range for outcome prediction
+    mrnsForFilter: list of mrns to get outcomes for
+    filter: default==True; if True returns mrn filtered data only, otherwise returns all data with either a 0 or ''
+    """
+    outcome_pct = np.zeros(len(data_dic.keys()), dtype=float)
+    outcome_labels = [''] * len(data_dic.keys())
+    indices = np.zeros(len(data_dic.keys()))
+    for (ix, k) in enumerate(data_dic):
+        if (len(mrnsForFilter) > 0) & (str(data_dic[k]['mrn']) not in mrnsForFilter):
+            continue
+        pct, label = get_final_bmi_single(data_dic[k], agex_low, agex_high)
+        if pct == 0 and label == '':
+            continue
+        outcome_pct[ix] = pct
+        outcome_labels[ix] = label
+        indices[ix] = 1
+    if filter:
+        indices = (indices == 1)
+        return outcome_pct[indices], np.array(outcome_labels)[indices]
+    else:
+        return outcome_pct, np.array(outcome_labels)
+
+def get_final_bmi_single(patient_data, agex_low, agex_high):
+    """
+    Function to get the BMI percentile and outcome label for an individual patient
+    """
+    bdate = data_dic[k]['bdate']
+    gender = data_dic[k]['gender']
+    if ('vitals' not in patient_data) and ('BMI' not in patient_data['vitals']):
+        return 0, ''
+    BMI_pct_list = []
+    BMI_label_list = []
+    BMI_list = []
+    age_list = []
+    for (edate, bmi) in data_dic[k]['vitals']['BMI']:
+        age = (edate - bdate).days / 365.0
+        if (age >= agex_low) and (age < agex_high):
+            age_list.append(age)
+            BMI_list.append(bmi)
+            BMI_pct_list.append(stats.norm.cdf(zscore.zscore_bmi(gender, age, bmi, unit='years'))) # function takes age as months
+    if len(BMI_pct_list) > 1:
+        pct_med = np.median(np.array(BMI_pct_list))
+        age_med = np.median(np.array(age_list))
+        bmi_med = np.median(np.array(BMI_list))
+        return pct_med, get_obesity_label(pct_med, bmi_med, age_med, gender)
+    else:
+        return, BMI_pct_list[0], get_obesity_label(BMI_pct_list[0], BMI_list[0], age_list[0], gender)
+
 
 def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, prediction='obese', mrnsForFilter=[]):
     """
@@ -1346,11 +1419,13 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
                             maternal_data = {}
                             maternal_hist_data = {}
                             mother_child_data = {}
-                        if data_dic[k]['mrn'] in lat_lon_dic:
+                        try:
                             lat_lon_item = lat_lon_dic[str(data_dic[k]['mrn'])]
-                        else:
-                            # print('no lat/lon for mrn:', data_dic[k]['mrn'])
-                            lat_lon_item = {}
+                        except:
+                            try:
+                                lat_lon_item = lat_lon_dic[data_dic[k]['mrn']]
+                            except:
+                                lat_lon_item = {}
                         ix_pos_start = 0
                         ix_pos_end = len(funcs[0][1][1])
                         for (pos, f) in enumerate(funcs):
