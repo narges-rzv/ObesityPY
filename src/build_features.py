@@ -1449,67 +1449,6 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
                 ix_pos_end = features.shape[1]
 
 
-
-        # bdate = data_dic[k]['bdate']
-        # mrns[ix] = data_dic[k]['mrn']
-        # if ('vitals' in data_dic[k]) and ('BMI' in data_dic[k]['vitals']):
-        #     BMI_list = []
-        #     BMI_outcome_list = []
-        #     for (edate, bmi) in data_dic[k]['vitals']['BMI']:
-        #         age = (edate - bdate).days / 365.0
-        #         if (age >= agex_low) and (age< agex_high):
-        #             BMI_list.append(bmi)
-        #             try:
-        #                 pct = stats.norm.cdf(zscore.zscore_bmi(data_dic[k]['gender'], age, bmi, unit='years'))
-        #                 BMI_outcome_list.append(low_pct <= pct < high_pct) # function takes age as months
-        #             except:
-        #                 BMI_outcome_list.append(zscore.severe_obesity_bmi(data_dic[k]['gender'], age, bmi, unit='years', severity=prediction[-1]))
-        #             if (flag == False): #compute features once
-        #                 if data_dic[k]['mrn'] in data_dic_moms:
-        #                     maternal_data = data_dic_moms[data_dic[k]['mrn']]
-        #                     if data_dic_moms[data_dic[k]['mrn']]['mom_mrn'] in data_dic_hist_moms:
-        #                         maternal_hist_data = data_dic_hist_moms[data_dic_moms[data_dic[k]['mrn']]['mom_mrn']]
-        #                         try:
-        #                             mother_child_data = mother_child_dic[data_dic_moms[k]['mom_mrn']]
-        #                         except:
-        #                             mother_child_data = {}
-        #                     else:
-        #                         maternal_hist_data = {}
-        #                 else:
-        #                     maternal_data = {}
-        #                     maternal_hist_data = {}
-        #                     mother_child_data = {}
-        #                 try:
-        #                     lat_lon_item = lat_lon_dic[str(data_dic[k]['mrn'])]
-        #                 except:
-        #                     try:
-        #                         lat_lon_item = lat_lon_dic[data_dic[k]['mrn']]
-        #                     except:
-        #                         lat_lon_item = {}
-        #                 ix_pos_start = 0
-        #                 ix_pos_end = len(funcs[0][1][1])
-        #                 for (pos, f) in enumerate(funcs):
-        #                     func = f[0]
-        #                     features[ix, ix_pos_start:ix_pos_end] = func(
-        #                         data_dic[k],
-        #                         maternal_data,
-        #                         maternal_hist_data,
-        #                         lat_lon_item,
-        #                         env_dic,
-        #                         bdate + relativedelta(months=months_from), # timedelta(days=months_from*30)
-        #                         bdate + relativedelta(months=months_to), # timedelta(days=months_to*30)
-        #                         *f[1])
-        #                     ix_pos_start += len(f[1][1])
-        #                     try:
-        #                         ix_pos_end += len(funcs[pos+1][1][1])
-        #                     except IndexError:
-        #                         ix_pos_end = features.shape[1]
-        #                 flag = True
-        #     if (flag == True) and len(BMI_list)>=1:
-        #         # print(BMI_list)
-        #         outcomelabels[ix] = stats.mode(np.array(BMI_outcome_list)).mode[0]
-        #         outcome[ix] = np.array(BMI_list).mean()
-
     # Calculate the Z-Scores for each of the vital periods and the gain between them
     zscore_headers = ['Vital: Wt for Length ZScore-avg0to1','Vital: Wt for Length ZScore-avg1to3','Vital: Wt for Length ZScore-avg3to5','Vital: Wt for Length ZScore-avg5to7','Vital: Wt for Length ZScore-avg7to10','Vital: Wt for Length Zscore-avg10to13','Vital: Wt for Length ZScore-avg13to16','Vital: Wt for Length ZScore-avg16to19','Vital: Wt for Length ZScore-avg19to24']
     zscore_gain_headers = ['Vital: Wt for Length ZScore-gain0to3','Vital: Wt for Length ZScore-gain1to5','Vital: Wt for Length ZScore-gain3to7','Vital: Wt for Length ZScore-gain5to10','Vital: Wt for Length ZScore-gain7to13','Vital: Wt for Length ZScore-gain10to16','Vital: Wt for Length ZScore-gain13to19','Vital: Wt for Length ZScore-gain16to24']
