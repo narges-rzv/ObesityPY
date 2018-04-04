@@ -470,9 +470,9 @@ def build_features_mat_agedel(patient_data, maternal_data, maternal_hist_data, l
 
 ##### FUNCTIONS TO BUILD FEATURES FOR HISTORICAL MATERNAL DATA ####
 def mother_child_map(patient_data, maternal_data, maternal_hist_data):
-    child_mrn = set([patient_data[k]['mrn'] for k in patient_data.keys()]) & set(maternal_data.keys())
+    child_mrn = set(np.array([patient_data[k]['mrn'] for k in patient_data.keys()])) & set(np.nan_to_num(np.array([*maternal_data])).astype(int).astype(str))
     mom_mrn = set(maternal_hist_data.keys()) & set([maternal_data[k]['mom_mrn'] for k in maternal_data.keys()])
-    keys = [k for k in patient_data.keys() if patient_data[k]['mrn'] in child_mrn]
+    keys = [k for k in patient_data.keys() if str(patient_data[k]['mrn']) in child_mrn]
     mother_child_dic = {}
     for k in keys:
         try:
@@ -1202,27 +1202,28 @@ def get_final_bmi_single(patient_data, agex_low, agex_high):
     """
     Function to get the BMI percentile and outcome label for an individual patient
     """
-    bdate = data_dic[k]['bdate']
-    gender = data_dic[k]['gender']
-    if ('vitals' not in patient_data) and ('BMI' not in patient_data['vitals']):
-        return 0, ''
+    bdate = patient_data['bdate']
+    gender = patient_data['gender']
     BMI_pct_list = []
     BMI_label_list = []
     BMI_list = []
     age_list = []
-    for (edate, bmi) in data_dic[k]['vitals']['BMI']:
-        age = (edate - bdate).days / 365.0
-        if (age >= agex_low) and (age < agex_high):
-            age_list.append(age)
-            BMI_list.append(bmi)
-            BMI_pct_list.append(stats.norm.cdf(zscore.zscore_bmi(gender, age, bmi, unit='years'))) # function takes age as months
+    if ('vitals' in patient_data) and ('BMI' in patient_data['vitals']):
+        for (edate, bmi) in patient_data['vitals']['BMI']:
+            age = (edate - bdate).days / 365.0
+            if (age >= agex_low) and (age < agex_high):
+                age_list.append(age)
+                BMI_list.append(bmi)
+                BMI_pct_list.append(stats.norm.cdf(zscore.zscore_bmi(gender, age, bmi, unit='years'))) # function takes age as months
     if len(BMI_pct_list) > 1:
         pct_med = np.median(np.array(BMI_pct_list))
         age_med = np.median(np.array(age_list))
         bmi_med = np.median(np.array(BMI_list))
         return pct_med, get_obesity_label(pct_med, bmi_med, age_med, gender)
+    elif BMI_pct_list == []:
+        return 0, ''
     else:
-        return, BMI_pct_list[0], get_obesity_label(BMI_pct_list[0], BMI_list[0], age_list[0], gender)
+        return BMI_pct_list[0], get_obesity_label(BMI_pct_list[0], BMI_list[0], age_list[0], gender)
 
 
 def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, prediction='obese', mrnsForFilter=[]):
@@ -1258,7 +1259,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         pass
     else:
         warnings.warn('Invalid prediction parameter. Using default "obese" thresholds.')
-        low_pct, high_pct = (0.95,1.)
+        prediction = 'obese'
 
     feature_index_gen, feature_headers_gen = build_feature_gender_index()
     feature_index_icd, feature_headers_icd = build_feature_ICD_index()
@@ -1386,69 +1387,128 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         headers += f[1][1]
 
     num = '{:,d}'.format(len(data_dic))
+    mom_keys = np.nan_to_num(np.array([*data_dic_moms])).astype(int).astype(str)
     for (ix, k) in tqdm(enumerate(data_dic), desc='Processing ' + num + ' patients'):
         if (len(mrnsForFilter) > 0) & (str(data_dic[k]['mrn']) not in mrnsForFilter):
             continue
         flag=False
+        pct, label = get_final_bmi_single(data_dic[k], agex_low, agex_high)
+        if pct == 0 and label ==  '':
+            outcomelabels[ix] = 0
+            continue
+        outcome[ix] = pct
+        if prediction == 'overweight':
+            outcomelabels[ix] = 1 if label == 'overweight' else 0
+        elif prediction == 'obese':
+            outcomelabels[ix] = 1 if label in ('obese','class I severe obesity','class II severe obesity') else 0
+        elif prediction == 'severe1':
+            outcomelabels[ix] = 1 if label == 'class I severe obesity' else 0
+        elif prediction == 'severe2':
+            outcomelabels[ix] = 1 if label == 'class II severe obesity' else 0
+
         bdate = data_dic[k]['bdate']
         mrns[ix] = data_dic[k]['mrn']
-        if ('vitals' in data_dic[k]) and ('BMI' in data_dic[k]['vitals']):
-            BMI_list = []
-            BMI_outcome_list = []
-            for (edate, bmi) in data_dic[k]['vitals']['BMI']:
-                age = (edate - bdate).days / 365.0
-                if (age >= agex_low) and (age< agex_high):
-                    BMI_list.append(bmi)
-                    try:
-                        pct = stats.norm.cdf(zscore.zscore_bmi(data_dic[k]['gender'], age, bmi, unit='years'))
-                        BMI_outcome_list.append(low_pct <= pct < high_pct) # function takes age as months
-                    except:
-                        BMI_outcome_list.append(zscore.severe_obesity_bmi(data_dic[k]['gender'], age, bmi, unit='years', severity=prediction[-1]))
-                    if (flag == False): #compute features once
-                        if data_dic[k]['mrn'] in data_dic_moms:
-                            maternal_data = data_dic_moms[data_dic[k]['mrn']]
-                            if data_dic_moms[data_dic[k]['mrn']]['mom_mrn'] in data_dic_hist_moms:
-                                maternal_hist_data = data_dic_hist_moms[data_dic_moms[data_dic[k]['mrn']]['mom_mrn']]
-                                try:
-                                    mother_child_data = mother_child_dic[data_dic_moms[k]['mom_mrn']]
-                                except:
-                                    mother_child_data = {}
-                            else:
-                                maternal_hist_data = {}
-                        else:
-                            maternal_data = {}
-                            maternal_hist_data = {}
-                            mother_child_data = {}
-                        try:
-                            lat_lon_item = lat_lon_dic[str(data_dic[k]['mrn'])]
-                        except:
-                            try:
-                                lat_lon_item = lat_lon_dic[data_dic[k]['mrn']]
-                            except:
-                                lat_lon_item = {}
-                        ix_pos_start = 0
-                        ix_pos_end = len(funcs[0][1][1])
-                        for (pos, f) in enumerate(funcs):
-                            func = f[0]
-                            features[ix, ix_pos_start:ix_pos_end] = func(
-                                data_dic[k],
-                                maternal_data,
-                                maternal_hist_data,
-                                lat_lon_item,
-                                env_dic,
-                                bdate + relativedelta(months=months_from), # timedelta(days=months_from*30)
-                                bdate + relativedelta(months=months_to), # timedelta(days=months_to*30)
-                                *f[1])
-                            ix_pos_start += len(f[1][1])
-                            try:
-                                ix_pos_end += len(funcs[pos+1][1][1])
-                            except IndexError:
-                                ix_pos_end = features.shape[1]
-                        flag = True
-            if (flag == True) and len(BMI_list)>=1:
-                # print(BMI_list)
-                outcomelabels[ix] = stats.mode(np.array(BMI_outcome_list)).mode[0]
-                outcome[ix] = np.array(BMI_list).mean()
+        if data_dic[k]['mrn'] in data_dic_moms:
+            maternal_data = data_dic_moms[data_dic[k]['mrn']]
+            if data_dic_moms[data_dic[k]['mrn']]['mom_mrn'] in data_dic_hist_moms:
+                maternal_hist_data = data_dic_hist_moms[data_dic_moms[data_dic[k]['mrn']]['mom_mrn']]
+                try:
+                    mother_child_data = mother_child_dic[data_dic_moms[k]['mom_mrn']]
+                except:
+                    mother_child_data = {}
+            else:
+                maternal_hist_data = {}
+        else:
+            maternal_data = {}
+            maternal_hist_data = {}
+            mother_child_data = {}
+        try:
+            lat_lon_item = lat_lon_dic[str(data_dic[k]['mrn'])]
+        except:
+            try:
+                lat_lon_item = lat_lon_dic[data_dic[k]['mrn']]
+            except:
+                lat_lon_item = {}
+        ix_pos_start = 0
+        ix_pos_end = len(funcs[0][1][1])
+        for (pos, f) in enumerate(funcs):
+            func = f[0]
+            features[ix, ix_pos_start:ix_pos_end] = func(
+                data_dic[k],
+                maternal_data,
+                maternal_hist_data,
+                lat_lon_item,
+                env_dic,
+                bdate + relativedelta(months=months_from), # timedelta(days=months_from*30)
+                bdate + relativedelta(months=months_to), # timedelta(days=months_to*30)
+                *f[1])
+            ix_pos_start += len(f[1][1])
+            try:
+                ix_pos_end += len(funcs[pos+1][1][1])
+            except IndexError:
+                ix_pos_end = features.shape[1]
+
+
+
+        # bdate = data_dic[k]['bdate']
+        # mrns[ix] = data_dic[k]['mrn']
+        # if ('vitals' in data_dic[k]) and ('BMI' in data_dic[k]['vitals']):
+        #     BMI_list = []
+        #     BMI_outcome_list = []
+        #     for (edate, bmi) in data_dic[k]['vitals']['BMI']:
+        #         age = (edate - bdate).days / 365.0
+        #         if (age >= agex_low) and (age< agex_high):
+        #             BMI_list.append(bmi)
+        #             try:
+        #                 pct = stats.norm.cdf(zscore.zscore_bmi(data_dic[k]['gender'], age, bmi, unit='years'))
+        #                 BMI_outcome_list.append(low_pct <= pct < high_pct) # function takes age as months
+        #             except:
+        #                 BMI_outcome_list.append(zscore.severe_obesity_bmi(data_dic[k]['gender'], age, bmi, unit='years', severity=prediction[-1]))
+        #             if (flag == False): #compute features once
+        #                 if data_dic[k]['mrn'] in data_dic_moms:
+        #                     maternal_data = data_dic_moms[data_dic[k]['mrn']]
+        #                     if data_dic_moms[data_dic[k]['mrn']]['mom_mrn'] in data_dic_hist_moms:
+        #                         maternal_hist_data = data_dic_hist_moms[data_dic_moms[data_dic[k]['mrn']]['mom_mrn']]
+        #                         try:
+        #                             mother_child_data = mother_child_dic[data_dic_moms[k]['mom_mrn']]
+        #                         except:
+        #                             mother_child_data = {}
+        #                     else:
+        #                         maternal_hist_data = {}
+        #                 else:
+        #                     maternal_data = {}
+        #                     maternal_hist_data = {}
+        #                     mother_child_data = {}
+        #                 try:
+        #                     lat_lon_item = lat_lon_dic[str(data_dic[k]['mrn'])]
+        #                 except:
+        #                     try:
+        #                         lat_lon_item = lat_lon_dic[data_dic[k]['mrn']]
+        #                     except:
+        #                         lat_lon_item = {}
+        #                 ix_pos_start = 0
+        #                 ix_pos_end = len(funcs[0][1][1])
+        #                 for (pos, f) in enumerate(funcs):
+        #                     func = f[0]
+        #                     features[ix, ix_pos_start:ix_pos_end] = func(
+        #                         data_dic[k],
+        #                         maternal_data,
+        #                         maternal_hist_data,
+        #                         lat_lon_item,
+        #                         env_dic,
+        #                         bdate + relativedelta(months=months_from), # timedelta(days=months_from*30)
+        #                         bdate + relativedelta(months=months_to), # timedelta(days=months_to*30)
+        #                         *f[1])
+        #                     ix_pos_start += len(f[1][1])
+        #                     try:
+        #                         ix_pos_end += len(funcs[pos+1][1][1])
+        #                     except IndexError:
+        #                         ix_pos_end = features.shape[1]
+        #                 flag = True
+        #     if (flag == True) and len(BMI_list)>=1:
+        #         # print(BMI_list)
+        #         outcomelabels[ix] = stats.mode(np.array(BMI_outcome_list)).mode[0]
+        #         outcome[ix] = np.array(BMI_list).mean()
 
     # Calculate the Z-Scores for each of the vital periods and the gain between them
     zscore_headers = ['Vital: Wt for Length ZScore-avg0to1','Vital: Wt for Length ZScore-avg1to3','Vital: Wt for Length ZScore-avg3to5','Vital: Wt for Length ZScore-avg5to7','Vital: Wt for Length ZScore-avg7to10','Vital: Wt for Length Zscore-avg10to13','Vital: Wt for Length ZScore-avg13to16','Vital: Wt for Length ZScore-avg16to19','Vital: Wt for Length ZScore-avg19to24']
