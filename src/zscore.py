@@ -252,11 +252,11 @@ def severe_obesity_wfl(gender, length, weight, units='metric', severity=1):
                 return weight >= severe2[gender][ix_low]
 
         else:
-            ix_low = WHO_percentiles['length'].index(int(length[ix]*10)/10)
+            ix_low = WHO_percentiles['length'].index(int(length*10)/10)
             if severity == 1:
-                severe = linear_interpolation(length, WHO_percentiles['length'][ix_low], CDC_percentiles['length'][ix_low+1], severe1[gender][ix_low], severe1[gender][ix_low+1])
+                severe = linear_interpolation(length, WHO_percentiles['length'][ix_low], WHO_percentiles['length'][ix_low+1], severe1[gender][ix_low], severe1[gender][ix_low+1])
             else:
-                severe = linear_interpolation(length, WHO_percentiles['length'][ix_low], CDC_percentiles['length'][ix_low+1], severe2[gender][ix_low], severe2[gender][ix_low+1])
+                severe = linear_interpolation(length, WHO_percentiles['length'][ix_low], WHO_percentiles['length'][ix_low+1], severe2[gender][ix_low], severe2[gender][ix_low+1])
             return weight >= severe
 
 

@@ -1151,7 +1151,7 @@ def build_feature_num_visits_index():
     feature_headers = ['Number of Visits']
     return feature_index, feature_headers
 
-def get_obesity_label(pct, bmi, age, gender):
+def get_obesity_label_bmi(pct, bmi, age, gender):
     """
     Returns the obesity label as underweight, normal, overweight, obese, class I or class II severe obesity
     """
@@ -1169,6 +1169,24 @@ def get_obesity_label(pct, bmi, age, gender):
         else:
             return 'obese'
 
+def get_obesity_label_wfl(pct, ht, wt, gender):
+    """
+    Returns the obesity label as underweight, normal, overweight, obese, class I or class II severe obesity
+    """
+    if 0 <= pct < 0.05:
+        return 'underweight'
+    elif 0.05 <= pct < 0.85:
+        return 'normal'
+    elif 0.85 <= pct < 0.95:
+        return 'overweight'
+    elif 0.95 <= pct < 1:
+        if zscore.severe_obesity_wfl(gender, ht, wt, units='usa', severity=2):
+            return 'class II severe obesity'
+        elif zscore.severe_obesity_wfl(gender, ht, wt, units='usa', severity=1):
+            return 'class I severe obesity'
+        else:
+            return 'obese'
+
 def get_final_bmi(data_dic, agex_low, agex_high, mrnsForFilter=[], filter=True):
     """
     Function to get the distinct bmi percentile readings for predictions.
@@ -1180,23 +1198,56 @@ def get_final_bmi(data_dic, agex_low, agex_high, mrnsForFilter=[], filter=True):
     mrnsForFilter: list of mrns to get outcomes for
     filter: default==True; if True returns mrn filtered data only, otherwise returns all data with either a 0 or ''
     """
+    outcome = np.zeros(len(data_dic.keys()), dtype=float)
     outcome_pct = np.zeros(len(data_dic.keys()), dtype=float)
     outcome_labels = [''] * len(data_dic.keys())
     indices = np.zeros(len(data_dic.keys()))
     for (ix, k) in enumerate(data_dic):
         if (len(mrnsForFilter) > 0) & (str(data_dic[k]['mrn']) not in mrnsForFilter):
             continue
-        pct, label = get_final_bmi_single(data_dic[k], agex_low, agex_high)
+        bmi, pct, label = get_final_bmi_single(data_dic[k], agex_low, agex_high)
         if pct == 0 and label == '':
             continue
+        outcome[ix] = bmi
         outcome_pct[ix] = pct
         outcome_labels[ix] = label
         indices[ix] = 1
     if filter:
         indices = (indices == 1)
-        return outcome_pct[indices], np.array(outcome_labels)[indices]
+        return outcome[indices], outcome_pct[indices], np.array(outcome_labels)[indices]
     else:
-        return outcome_pct, np.array(outcome_labels)
+        return outcome, outcome_pct, np.array(outcome_labels)
+
+def get_latest_reading(data_dic, months_from, months_to, mrnsForFilter=[], zero_filter=True):
+    """
+    Function to get the distinct bmi percentile readings for predictions.
+    Returns outcome percentiles and labels
+    #### PARAMETERS ####
+    data_dic: dictionary of patient data
+    months_from: low age range for valid data readings
+    months_to: high age range for valid data readings
+    mrnsForFilter: list of mrns to get outcomes for
+    zero_filter: default==True; if True returns mrn filtered data only, otherwise returns all data with either a 0 or ''
+    """
+    outcome = np.zeros(len(data_dic.keys()), dtype=float) if months_to > 24 else np.zeros((len(data_dic.keys()),2), dtype=float)
+    outcome_pct = np.zeros(len(data_dic.keys()), dtype=float)
+    outcome_labels = [''] * len(data_dic.keys())
+    indices = np.zeros(len(data_dic.keys()))
+    for (ix, k) in enumerate(data_dic):
+        if (len(mrnsForFilter) > 0) & (str(data_dic[k]['mrn']) not in mrnsForFilter):
+            continue
+        age, reading, pct, label = get_latest_label_single(data_dic[k], months_from, months_to)
+        if pct == 0 and label == '':
+            continue
+        outcome[ix] = reading
+        outcome_pct[ix] = pct
+        outcome_labels[ix] = label
+        indices[ix] = 1
+    if zero_filter:
+        indices = (indices == 1)
+        return outcome[indices,:], outcome_pct[indices], np.array(outcome_labels)[indices]
+    else:
+        return outcome, outcome_pct, np.array(outcome_labels)
 
 def get_final_bmi_single(patient_data, agex_low, agex_high):
     """
@@ -1219,12 +1270,50 @@ def get_final_bmi_single(patient_data, agex_low, agex_high):
         pct_med = np.median(np.array(BMI_pct_list))
         age_med = np.median(np.array(age_list))
         bmi_med = np.median(np.array(BMI_list))
-        return pct_med, get_obesity_label(pct_med, bmi_med, age_med, gender)
+        return bmi_med, pct_med, get_obesity_label(pct_med, bmi_med, age_med, gender)
     elif BMI_pct_list == []:
-        return 0, ''
+        return 0, 0, ''
     else:
-        return BMI_pct_list[0], get_obesity_label(BMI_pct_list[0], BMI_list[0], age_list[0], gender)
+        return BMI_list[0], BMI_pct_list[0], get_obesity_label(BMI_pct_list[0], BMI_list[0], age_list[0], gender)
 
+def get_latest_label_single(patient_data, months_from, months_to):
+    """
+    Function to get the BMI or WFL percentile and outcome label for an individual patient
+    Returns age (in years), the bmi or wfl percentile, and the cdc label for underweight, normal, overweight, obese, class I severe obesity, and class II severe obesity
+    """
+    bdate = patient_data['bdate']
+    gender = patient_data['gender']
+
+    start_date = bdate + relativedelta(months=months_from)
+    end_date = bdate + relativedelta(months=months_to)
+    age_final = 0
+    label_final = ''
+    if months_to > 24:
+        bmi_final = 0
+        bmi_pct_final = 0
+        if ('vitals' in patient_data) and ('BMI' in patient_data['vitals']):
+            for (edate, bmi) in patient_data['vitals']['BMI']:
+                if (edate >= start_date) and (edate < end_date):
+                    age_final = (edate - bdate).days / 365.0
+                    bmi_final = bmi
+                    bmi_pct_final = stats.norm.cdf(zscore.zscore_bmi(gender, age_final, bmi_final, unit='years'))
+                    label_final = get_obesity_label_bmi(bmi_pct_final, bmi_final, age_final, gender)
+            return age_final, bmi_final, bmi_pct_final, label_final
+    else:
+        ht_final = 0
+        wt_final = 0
+        wfl_pct_final = 0
+        if ('vitals' in patient_data) and ('Ht' in patient_data['vitals']) and ('Wt' in patient_data['vitals']):
+            for (edate, ht) in patient_data['vitals']['Ht']:
+                if (edate >= start_date) and (edate < end_date):
+                    for (wdate, wt) in patient_data['vitals']['Wt']:
+                        if edate == wdate:
+                            age_final = age_final = (edate - bdate).days / 365.0
+                            ht_final = ht
+                            wt_final = wt
+                            wfl_pct_final = stats.norm.cdf(zscore.zscore_wfl(gender, ht_final, wt_final, units='usa'))
+                            label_final = get_obesity_label_wfl(wfl_pct_final, ht_final, wt_final, gender)
+        return age_final, (ht_final, wt_final), wfl_pct_final, label_final
 
 def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, prediction='obese', mrnsForFilter=[]):
     """
@@ -1392,11 +1481,11 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         if (len(mrnsForFilter) > 0) & (str(data_dic[k]['mrn']) not in mrnsForFilter):
             continue
         flag=False
-        pct, label = get_final_bmi_single(data_dic[k], agex_low, agex_high)
+        bmi, pct, label = get_final_bmi_single(data_dic[k], agex_low, agex_high)
         if pct == 0 and label ==  '':
             outcomelabels[ix] = 0
             continue
-        outcome[ix] = pct
+        outcome[ix] = bmi
         if prediction == 'overweight':
             outcomelabels[ix] = 1 if label == 'overweight' else 0
         elif prediction == 'obese':
