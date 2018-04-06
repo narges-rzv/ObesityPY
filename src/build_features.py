@@ -1270,11 +1270,11 @@ def get_final_bmi_single(patient_data, agex_low, agex_high):
         pct_med = np.median(np.array(BMI_pct_list))
         age_med = np.median(np.array(age_list))
         bmi_med = np.median(np.array(BMI_list))
-        return bmi_med, pct_med, get_obesity_label(pct_med, bmi_med, age_med, gender)
+        return bmi_med, pct_med, get_obesity_label_bmi(pct_med, bmi_med, age_med, gender)
     elif BMI_pct_list == []:
         return 0, 0, ''
     else:
-        return BMI_list[0], BMI_pct_list[0], get_obesity_label(BMI_pct_list[0], BMI_list[0], age_list[0], gender)
+        return BMI_list[0], BMI_pct_list[0], get_obesity_label_bmi(BMI_pct_list[0], BMI_list[0], age_list[0], gender)
 
 def get_latest_label_single(patient_data, months_from, months_to):
     """
