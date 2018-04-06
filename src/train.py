@@ -1063,107 +1063,111 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
     features2 = ['Vital: Wt for Len Percentile-avg19to24','Vital: BMI-avg19to24','Vital: Wt for Len Percentile-avg16to19','Vital: BMI-avg16to19']
 
     df1 = []
-    for k in features1.keys():
-        row = [k] + ['']*(len(headers1)-1)
-        df1.append(row)
-        for kk in features1[k].keys():
-            if len(features1[k][kk]) == 1:
-                col_ix = headers.index(features1[k][kk][0])
-                bin_indicator = x[:,col_ix].max()==1 and x[:,col_ix].min()==0
-                ix_total = (x[:,col_ix] != 0).sum()
-                ix_total_pos = (ylabel > 0) & (x[:,col_ix] != 0)
-                ix_total_neg = (ylabel == 0) & (x[:,col_ix] != 0)
-                De = sum((ylabel > 0) & (x[:,col_ix] != 0)) * 1.0
-                He = sum((ylabel == 0) & (x[:,col_ix] != 0)) * 1.0
-                Dn = sum((ylabel > 0) & (x[:,col_ix] == 0)) * 1.0
-                Hn = sum((ylabel == 0) & (x[:,col_ix] == 0)) * 1.0
-                OR = (De/He)/(Dn/Hn)
-                OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
-                OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
-                RR = (De/(De+He))/(Dn/(Dn+Hn))
+    with np.errstate(divide='ignore', invalid='ignore'):    
+        for k in features1.keys():
+            row = [k] + ['']*(len(headers1)-1)
+            df1.append(row)
+            for kk in features1[k].keys():
+                if len(features1[k][kk]) == 1:
+                    col_ix = headers.index(features1[k][kk][0])
+                    bin_indicator = x[:,col_ix].max()==1 and x[:,col_ix].min()==0
+                    ix_total = (x[:,col_ix] != 0).sum()
+                    ix_total_pos = (ylabel > 0) & (x[:,col_ix] != 0)
+                    ix_total_neg = (ylabel == 0) & (x[:,col_ix] != 0)
+                    De = sum((ylabel > 0) & (x[:,col_ix] != 0)) * 1.0
+                    He = sum((ylabel == 0) & (x[:,col_ix] != 0)) * 1.0
+                    Dn = sum((ylabel > 0) & (x[:,col_ix] == 0)) * 1.0
+                    Hn = sum((ylabel == 0) & (x[:,col_ix] == 0)) * 1.0
+                    OR = (De/He)/(Dn/Hn)
+                    OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
+                    OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
+                    RR = (De/(De+He))/(Dn/(Dn+Hn))
 
-                md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
-                se = np.sqrt(np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
-                lcl, ucl = md-2*se, md+2*se
-                z = md/se
+                    md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
+                    se = np.sqrt(np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
+                    lcl, ucl = md-2*se, md+2*se
+                    z = md/se
 
-                pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
-                row = [kk, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR, pvalue]
-                df1.append(row)
-            else:
-                if type(features1[k][kk][0]) != list:
-                    xx = np.zeros((x.shape[0]))
-                    bin_indicator = all(((x[:,headers.index(f)].max()==1) & (x[:,headers.index(f)].min()==0)) or (x[:,headers.index(f)].std()==0) for f in features1[k][kk])
-                    for f in features1[k][kk]:
-                        xx += x[:,headers.index(f)]
-                    if bin_indicator:
-                        xx[xx > 1] = 1
+                    pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+                    row = [kk, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR, pvalue]
+                    df1.append(row)
                 else:
-                    # should be two lists. first: features that should exist. second: features that should not exist
-                    xx_diag = np.zeros((x.shape[0]))
-                    xx_comp = np.zeros((x.shape[0]))
-                    bin_indicator = all(((x[:,headers.index(f)].max()==1) & (x[:,headers.index(f)].min()==0)) or (x[:,headers.index(f)].std()==0) for f in features1[k][kk][0])
-                    for f in features1[k][kk][0]:
-                        col_ix = headers.index(f)
-                        xx_diag += x[:,col_ix]
-                    for f in features1[k][kk][1]:
-                        xx_comp += x[:,headers.index(f)]
-                    xx = (xx_diag != 0) & (xx_comp == 0)
-                    if bin_indicator:
-                        xx[xx > 1] = 1
-                ix_total = xx
-                ix_total_pos = (ylabel > 0) & (xx != 0)
-                ix_total_neg = (ylabel == 0) & (xx != 0)
-                De = sum((ylabel > 0) & (xx != 0)) * 1.0
-                He = sum((ylabel == 0) & (xx != 0)) * 1.0
-                Dn = sum((ylabel > 0) & (xx == 0)) * 1.0
-                Hn = sum((ylabel == 0) & (xx == 0)) * 1.0
-                OR = (De/He)/(Dn/Hn)
-                OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
-                OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
-                RR = (De/(De+He))/(Dn/(Dn+Hn))
+                    if type(features1[k][kk][0]) != list:
+                        xx = np.zeros((x.shape[0]))
+                        bin_indicator = all(((x[:,headers.index(f)].max()==1) & (x[:,headers.index(f)].min()==0)) or (x[:,headers.index(f)].std()==0) for f in features1[k][kk])
+                        for f in features1[k][kk]:
+                            xx += x[:,headers.index(f)]
+                        if bin_indicator:
+                            xx[xx > 1] = 1
+                    else:
+                        # should be two lists. first: features that should exist. second: features that should not exist
+                        xx_diag = np.zeros((x.shape[0]))
+                        xx_comp = np.zeros((x.shape[0]))
+                        bin_indicator = all(((x[:,headers.index(f)].max()==1) & (x[:,headers.index(f)].min()==0)) or (x[:,headers.index(f)].std()==0) for f in features1[k][kk][0])
+                        for f in features1[k][kk][0]:
+                            col_ix = headers.index(f)
+                            xx_diag += x[:,col_ix]
+                        for f in features1[k][kk][1]:
+                            xx_comp += x[:,headers.index(f)]
+                        xx = (xx_diag != 0) & (xx_comp == 0)
+                        if bin_indicator:
+                            xx[xx > 1] = 1
+                    ix_total = xx
+                    ix_total_pos = (ylabel > 0) & (xx != 0)
+                    ix_total_neg = (ylabel == 0) & (xx != 0)
+                    De = sum((ylabel > 0) & (xx != 0)) * 1.0
+                    He = sum((ylabel == 0) & (xx != 0)) * 1.0
+                    Dn = sum((ylabel > 0) & (xx == 0)) * 1.0
+                    Hn = sum((ylabel == 0) & (xx == 0)) * 1.0
+                    OR = (De/He)/(Dn/Hn)
+                    OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
+                    OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
+                    RR = (De/(De+He))/(Dn/(Dn+Hn))
 
-                md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
-                se = np.sqrt( np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
-                lcl, ucl = md-2*se, md+2*se
-                z = md/se
+                    md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
+                    se = np.sqrt( np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
+                    lcl, ucl = md-2*se, md+2*se
+                    z = md/se
 
-                pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
-                row = [kk, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR, pvalue]
-                df1.append(row)
+                    pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+                    row = [kk, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR, pvalue]
+                    df1.append(row)
 
     df2 = []
-    for f in features2:
-        col_ix = headers.index(f)
-        bin_indicator = x[:,col_ix].max()==1 and x[:,col_ix].min()==0
-        ix_total = (x[:,col_ix] != 0)
-        ix_total_pos = (ylabel > 0) & (x[:,col_ix] != 0)
-        ix_total_neg = (ylabel == 0) & (x[:,col_ix] != 0)
-        De = sum((ylabel > 0) & (x[:,col_ix] != 0)) * 1.0
-        He = sum((ylabel == 0) & (x[:,col_ix] != 0)) * 1.0
-        Dn = sum((ylabel > 0) & (x[:,col_ix] == 0)) * 1.0
-        Hn = sum((ylabel == 0) & (x[:,col_ix] == 0)) * 1.0
-        OR = (De/He)/(Dn/Hn)
-        OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
-        OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
-        RR = (De/(De+He))/(Dn/(Dn+Hn))
+    with np.errstate(divide='ignore', invalid='ignore'):
+        for f in features2:
+            col_ix = headers.index(f)
+            bin_indicator = x[:,col_ix].max()==1 and x[:,col_ix].min()==0
+            ix_total = (x[:,col_ix] != 0)
+            ix_total_pos = (ylabel > 0) & (x[:,col_ix] != 0)
+            ix_total_neg = (ylabel == 0) & (x[:,col_ix] != 0)
+            De = sum((ylabel > 0) & (x[:,col_ix] != 0)) * 1.0
+            He = sum((ylabel == 0) & (x[:,col_ix] != 0)) * 1.0
+            Dn = sum((ylabel > 0) & (x[:,col_ix] == 0)) * 1.0
+            Hn = sum((ylabel == 0) & (x[:,col_ix] == 0)) * 1.0
+            OR = (De/He)/(Dn/Hn)
+            OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
+            OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
+            RR = (De/(De+He))/(Dn/(Dn+Hn))
 
-        md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
-        se = np.sqrt( np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
-        lcl, ucl = md-2*se, md+2*se
-        z = md/se
+            md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
+            se = np.sqrt( np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
+            lcl, ucl = md-2*se, md+2*se
+            z = md/se
 
-        pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
-        row = [f, ix_total.sum(), x[ix_total, col_ix].mean(), x[ix_total, col_ix].std(),
-               ix_total_pos.sum(), x[ix_total_pos, col_ix].mean(), x[ix_total_pos, col_ix].std(),
-               ix_total_neg.sum(), x[ix_total_neg, col_ix].mean(), x[ix_total_neg, col_ix].std(), pvalue]
-        df2.append(row)
+            pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+            row = [f, ix_total.sum(), x[ix_total, col_ix].mean(), x[ix_total, col_ix].std(),
+                   ix_total_pos.sum(), x[ix_total_pos, col_ix].mean(), x[ix_total_pos, col_ix].std(),
+                   ix_total_neg.sum(), x[ix_total_neg, col_ix].mean(), x[ix_total_neg, col_ix].std(), pvalue]
+            df2.append(row)
 
     df1 = pd.DataFrame(df1, columns=headers1)
     df1.replace(to_replace=np.nan, value=0, inplace=True)
     df2 = pd.DataFrame(df2, columns=headers2)
     df2.replace(to_replace=np.nan, value=0, inplace=True)
 
+    if not os.path.isdir(folder):
+        os.mkdir(folder)
     df1.to_csv(folder+'/summary_stats_t1.csv')
     df2.to_csv(folder+'/summary_stats_t2.csv')
 
