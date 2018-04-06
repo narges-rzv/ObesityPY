@@ -321,6 +321,86 @@ def filter_min_occurrences(x2,feature_headers, min_occur=0, print_out=True):
         '{0:,d} features filtered with number of occurrences less than {1:,d}\n'.format(feature_filter.sum(), min_occur)
         return x2, feature_headers, statements
 
+def run_lasso_single(args):
+    xtrain, xtest, ytrain, ytest, ytrainlabel, ytestlabel, hyperparamlist = args
+    for alpha_i in hyperparamlist:
+        clf = Lasso(alpha=alpha_i)
+        clf.fit(xtrain, ytrain)
+        auc_test = metrics.explained_variance_score(ytest, clf.predict(xtest)) #roc_auc_score(ytestlabel, clf.predict(xtest))
+        if auc_test > best_score:
+            best_score = auc_test #np.sqrt(((clf.predict(xtest)-ytest)**2).mean())
+            best_alpha = alpha_i
+    clf = Lasso(alpha=best_alpha)
+    clf.fit(xtrain,ytrain)
+    return clf.coef_
+
+def lasso_filter(x, y, ylabel, feature_headers, print_out=True):
+    """
+    Filter any columns that have zeroed out feature weights
+    """
+    if 'multiprocessing' not in sys.modules:
+        import multiprocessing
+        from multiprocessing import Pool
+    if 'Lasso' not in sys.modules:
+        from sklearn.linear_model import Lasso
+    N = x.shape[0]
+    ixlist = np.arange(0,N)
+    random.shuffle(ixlist)
+    ix_train = ixlist[0:int(N*0.8)]
+    ix_test = ixlist[int(N*0.8):]
+    xtrain = x[ix_train]
+    ytrain = y[ix_train]
+    xtest = x[ix_test]
+    ytest =  y[ix_test]
+    ytestlabel = ylabel[ix_test]
+    ytrainlabel = ylabel[ix_train]
+
+    best_alpha = -1
+    best_score = -10000
+    hyperparamlist = [0.001, 0.005, 0.01, 0.1] #[alpha]
+    arguments = []
+    n_train = len(ix_train)
+    for it in range(10):
+        ix_filt = random.shuffle(ix_train)[0:int(n_train*0.9)]
+        tr = ix_filt[0:int(len(ix_filt)*0.7)]
+        te = ix_filt[int(len(ix_filt)*0.7):]
+        arguments.append(xtrain[tr],xtrain[te],ytrain[tr],ytest[te],ytrainlabel[tr],ytestlabel[te], hyperparamlist)
+
+    node_count = int(multiprocessing.cpu_count()*0.8)
+    if len(arguments) > node_count:
+        num_args = len(arguments)
+        nums = math.ceil(float(num_args)/node_count)
+        outputs = []
+        for i in range(nums):
+            sub_args = args[i*node_count:(i+1)*node_count] if i < nums-1 else args[i*node_count:]
+            print('Running batch {0:d} of {1:d}'.format(i+1, nums))
+            with Pool(node_count) as p:
+                output = p.map(run_lasso_single, sub_args)
+            for out in output:
+                outputs.append(out)
+    else:
+        with Pool(node_count) as p:
+            print('processing', node_count, 'parallel jobs to create geocoded patient dictionary')
+            outputs = p.map(run_lasso_single, arguments)
+
+    model_weights = np.array(model_weights_array).mean(axis=0)
+    model_weights_std = model_weights_array.std(axis=0)
+    model_weights_conf_term = (1.96/np.sqrt(iters)) * model_weights_std
+
+    # print('R^2 score train:',clf.score(xtrain,ytrain))
+    # print('RMSE score train: {0:4.3f}'.format(np.sqrt(((clf.predict(xtrain)-ytrain)**2).mean())))
+    fpr, tpr, thresholds = metrics.roc_curve(ytrainlabel, clf.predict(xtrain))
+    print('AUC train: {0:4.3f}'.format(metrics.auc(fpr, tpr)) + ' Explained Variance Score Train: {0:4.3f}'.format(metrics.explained_variance_score(ytrain, clf.predict(xtrain)))) #http://scikit-learn.org/stable/modules/model_evaluation.html#explained-variance-score
+    fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, clf.predict(xtest))
+    auc_test = metrics.auc(fpr, tpr); r2test = clf.score(xtest,ytest)
+    # print('R^2 score test:',clf.score(xtest,ytest))
+    # print('RMSE score test: {0:4.3f}'.format(np.sqrt(((clf.predict(xtest)-ytest)**2).mean())))
+    print('AUC test: {0:4.3f}'.format(metrics.auc(fpr, tpr))+' Explained Variance Score Test: {0:4.3f}'.format(metrics.explained_variance_score(ytest, clf.predict(xtest))))
+
+
+
+    feature_headers = np.array(feature_headers)[feature_filter].tolist()
+
 def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, min_occur=0, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]), delay_print=False): #filterSTR='Gender:0 male'
     """
     Transforms the data to be run for ML analyses. Returns x2, y2, y2label, mrns2, ix_filter, and feature_headers2.
@@ -366,6 +446,7 @@ def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lo
     bin_ix: default []; list of binary features - will be determined if none provided
     do_normalize: default True; normalize the data
     min_occur: default 0; number of occurrences required for feature to be used
+    lasso_selection: defautl False; use LASSO regression to determine the most important features
     binarize_diagnosis: default True; binarize any diagnosis features that are not already binary
     get_char_tables: defaut False; save the Table 1 and 2 output to file
     subset: default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]); used to determine timeseries subset
@@ -520,65 +601,6 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
     feature_info: default True; output model feature characteristics post analysis
     subset: default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]); used to determine timeseries subset
     """
-
-    # if any([len(x)==0 for x in (x1,y1,y1label,feature_headers,mrns)]):
-    #     print('At least one required data not provided out of x1, y1, y1label, feature_headers, or mrns.')
-    #     try:
-    #         print('Creating data from the provided data dictionaries')
-    #         x1, y1, y1label, feature_headers, mrns = build_features.call_build_function(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, prediction=outcome, mrnsForFilter=mrnForFilter)
-    #         original_data = (x1, y1, y1label, feature_headers, mrns)
-    #     except:
-    #         print('Not all of the required data was provided. Exiting analysis.')
-    #         return
-    # else:
-    #     print('Using pre-prepared data')
-    #
-    # if binarize_diagnosis:
-    #     bin_ix = np.array([(h.startswith('Diagnosis:') or h.startswith('Maternal Diagnosis:') or h.startswith('Newborn Diagnosis:')) for h in feature_headers])
-    #     print(bin_ix.sum(), 'features are binary')
-    #     x1[:,bin_ix] = (x1[:,bin_ix] > 0) * 1.0
-    #
-    # ix_filter, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh)
-    #
-    # if get_char_tables:
-    #     print_charac_table(x2, y2, y2label, feature_headers)
-    #     newdir = time.strftime("table_stats_%Y%m%d_")+str(months_from)+'to'+str(months_to)+'months_'+str(agex_low)+'to'+str(agex_high)+'years'
-    #     if not os.path.exists(newdir):
-    #         os.mkdir(newdir)
-    #     get_stat_table(x2, y2, y2label, feature_headers, folder=newdir)
-    #
-    #
-    # if do_impute or do_normalize or add_time:
-    #     x2, mux, stdx, bin_ix, unobserved  = normalize(x2, bin_ix=bin_ix)
-    #
-    # if do_impute:
-    #     x2 = autoencoder_impute(x2, bin_ix)
-    #
-    # if add_time:
-    #     x2, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, dist_type, True, mux, stdx, do_impute, subset)
-    # else:
-    #     centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = ['NaN']*7
-    #
-    # corr_headers = np.array(feature_headers)
-    # corr_matrix = np.corrcoef(x2.transpose())
-    # corr_headers_filtered, corr_matrix_filtered, ix_corr_headers = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude)
-    # print('corr matrix is filtered to size', corr_matrix_filtered.shape)
-    #
-    # if len(variablesubset) != 0:
-    #     x2, feature_headers = variable_subset(x2, variablesubset, feature_headers)
-    #
-    # print ('output is: average:{0:4.3f}'.format(y2.mean()), ' min:', y2.min(), ' max:', y2.max())
-    # print ('of the ', y2.shape[0], ' total positive labels are:', y2label.sum())
-    # print ('normalizing output.'); y2 = (y2-y2.mean())/y2.std()
-    #
-    # print ('Predicting BMI at age:'+str(agex_low)+ ' to '+str(agex_high)+ 'years, from data in ages:'+ str(months_from)+'-'+str(months_to) + ' months')
-    # if filterSTR != '':
-    #     print ('filtering patients with: ', filterSTR)
-    #
-    # print ('total size',ix_filter.sum())
-    # if (ix_filter.sum() < 50):
-    #     print('Not enough subjects. Next.')
-    #     return (filterSTR, [])
 
     if modelType == 'lasso' or modelType == 'randomforest' or modelType == 'gradientboost' or modelType == 'lars':
         iters = 10
@@ -1063,7 +1085,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
     features2 = ['Vital: Wt for Len Percentile-avg19to24','Vital: BMI-avg19to24','Vital: Wt for Len Percentile-avg16to19','Vital: BMI-avg16to19']
 
     df1 = []
-    with np.errstate(divide='ignore', invalid='ignore'):    
+    with np.errstate(divide='ignore', invalid='ignore'):
         for k in features1.keys():
             row = [k] + ['']*(len(headers1)-1)
             df1.append(row)
