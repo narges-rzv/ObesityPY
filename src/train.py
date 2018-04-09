@@ -1,5 +1,7 @@
 import os
 import re
+import sys
+import math
 import time
 import pickle
 import random
@@ -9,15 +11,18 @@ matplotlib.use('TkAgg')
 import build_features
 import numpy as np
 import pandas as pd
+import multiprocessing
 import config as config_file
 import matplotlib.pylab as plt
 import outcome_def_pediatric_obesity
+from dateutil import parser
 from sklearn import metrics
 from scipy.stats import norm
-from sklearn.preprocessing import Imputer
-from dateutil import parser
 from datetime import timedelta
+from multiprocessing import Pool
+from sklearn.preprocessing import Imputer
 from dateutil.relativedelta import relativedelta
+
 random.seed(2)
 
 g_wfl = np.loadtxt(config_file.wght4leng_girl)
@@ -322,9 +327,12 @@ def filter_min_occurrences(x2,feature_headers, min_occur=0, print_out=True):
         return x2, feature_headers, statements
 
 def run_lasso_single(args):
-    xtrain, xtest, ytrain, ytest, ytrainlabel, ytestlabel, hyperparamlist = args
+    from sklearn.linear_model import Lasso
+    run, xtrain, xtest, ytrain, ytest, ytrainlabel, ytestlabel, hyperparamlist = args
+    best_score = -1
+    best_alpha = -1
     for alpha_i in hyperparamlist:
-        clf = Lasso(alpha=alpha_i)
+        clf = Lasso(alpha=alpha_i, max_iter=1000)
         clf.fit(xtrain, ytrain)
         auc_test = metrics.explained_variance_score(ytest, clf.predict(xtest)) #roc_auc_score(ytestlabel, clf.predict(xtest))
         if auc_test > best_score:
@@ -332,76 +340,65 @@ def run_lasso_single(args):
             best_alpha = alpha_i
     clf = Lasso(alpha=best_alpha)
     clf.fit(xtrain,ytrain)
+    # model_weights_array = np.array([clf.coef_ for clf in outputs])
+    # model_weights_mean = model_weights_array.mean(axis=0)
+    # model_weights_std = model_weights_array.std(axis=0)
+    # model_weights_conf_term = (1.96/np.sqrt(iters)) * model_weights_std
+
+    fpr, tpr, thresholds = metrics.roc_curve(ytrainlabel, clf.predict(xtrain))
+    to_print = 'Run {0:d} has {1:,d} non-zero features and {2:,d} zero-weight features\n'.format(run, (clf.coef_ != 0).sum(), (clf.coef_ == 0).sum())
+    to_print += 'R^2 score train: {0:4.3f}\n'.format(clf.score(xtrain,ytrain))
+    to_print += 'RMSE score train: {0:4.3f}\n'.format(np.sqrt(((clf.predict(xtrain)-ytrain)**2).mean()))
+    to_print += 'AUC train: {0:4.3f},  Explained Variance Score Train: {1:4.3f}\n'.format(metrics.auc(fpr, tpr), metrics.explained_variance_score(ytrain, clf.predict(xtrain))) #http://scikit-learn.org/stable/modules/model_evaluation.html#explained-variance-score
+    fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, clf.predict(xtest))
+    to_print += 'R^2 score train: {0:4.3f}\n'.format(clf.score(xtest,ytest))
+    to_print += 'RMSE score train: {0:4.3f}\n'.format(np.sqrt(((clf.predict(xtest)-ytest)**2).mean()))
+    to_print += 'AUC train: {0:4.3f},  Explained Variance Score Train: {1:4.3f}\n'.format(metrics.auc(fpr, tpr), metrics.explained_variance_score(ytest, clf.predict(xtest))) #http://scikit-learn.org/stable/modules/model_evaluation.html#explained-variance-score
+    print(to_print)
     return clf.coef_
 
 def lasso_filter(x, y, ylabel, feature_headers, print_out=True):
     """
     Filter any columns that have zeroed out feature weights
     """
-    if 'multiprocessing' not in sys.modules:
-        import multiprocessing
-        from multiprocessing import Pool
-    if 'Lasso' not in sys.modules:
-        from sklearn.linear_model import Lasso
     N = x.shape[0]
     ixlist = np.arange(0,N)
-    random.shuffle(ixlist)
-    ix_train = ixlist[0:int(N*0.8)]
-    ix_test = ixlist[int(N*0.8):]
-    xtrain = x[ix_train]
-    ytrain = y[ix_train]
-    xtest = x[ix_test]
-    ytest =  y[ix_test]
-    ytestlabel = ylabel[ix_test]
-    ytrainlabel = ylabel[ix_train]
-
+    ix_train = ixlist
+    random.shuffle(ix_train)
+    ix_train = ix_train[0:int(N*0.8)]
+    iters=10
     best_alpha = -1
     best_score = -10000
     hyperparamlist = [0.001, 0.005, 0.01, 0.1] #[alpha]
     arguments = []
-    n_train = len(ix_train)
-    for it in range(10):
-        ix_filt = random.shuffle(ix_train)[0:int(n_train*0.9)]
+    for it in range(iters):
+        ix_filt = ix_train
+        random.shuffle(ix_filt)
+        ix_filt = ix_filt[0:int(N*0.9)]
         tr = ix_filt[0:int(len(ix_filt)*0.7)]
         te = ix_filt[int(len(ix_filt)*0.7):]
-        arguments.append(xtrain[tr],xtrain[te],ytrain[tr],ytest[te],ytrainlabel[tr],ytestlabel[te], hyperparamlist)
+        arguments.append([it,x[tr,:],x[te,:],y[tr],y[te],ylabel[tr],ylabel[te], hyperparamlist])
 
-    node_count = int(multiprocessing.cpu_count()*0.8)
+    node_count = multiprocessing.cpu_count()
+    node_count = math.ceil(node_count*0.8)
     if len(arguments) > node_count:
-        num_args = len(arguments)
-        nums = math.ceil(float(num_args)/node_count)
+        num_batches = math.ceil(float(len(arguments))/node_count)
         outputs = []
-        for i in range(nums):
-            sub_args = args[i*node_count:(i+1)*node_count] if i < nums-1 else args[i*node_count:]
-            print('Running batch {0:d} of {1:d}'.format(i+1, nums))
+        for i in range(num_batches):
+            sub_args = arguments[i*node_count:(i+1)*node_count] if i < num_batches-1 else arguments[i*node_count:]
+            nodes = node_count if i < num_batches-1 else len(arguments) - (i * node_count)
+            print('Running batch {0:d} of {1:d}'.format(i+1, num_batches))
             with Pool(node_count) as p:
                 output = p.map(run_lasso_single, sub_args)
             for out in output:
                 outputs.append(out)
     else:
         with Pool(node_count) as p:
-            print('processing', node_count, 'parallel jobs to create geocoded patient dictionary')
             outputs = p.map(run_lasso_single, arguments)
 
-    model_weights = np.array(model_weights_array).mean(axis=0)
-    model_weights_std = model_weights_array.std(axis=0)
-    model_weights_conf_term = (1.96/np.sqrt(iters)) * model_weights_std
+    return np.array(outputs)
 
-    # print('R^2 score train:',clf.score(xtrain,ytrain))
-    # print('RMSE score train: {0:4.3f}'.format(np.sqrt(((clf.predict(xtrain)-ytrain)**2).mean())))
-    fpr, tpr, thresholds = metrics.roc_curve(ytrainlabel, clf.predict(xtrain))
-    print('AUC train: {0:4.3f}'.format(metrics.auc(fpr, tpr)) + ' Explained Variance Score Train: {0:4.3f}'.format(metrics.explained_variance_score(ytrain, clf.predict(xtrain)))) #http://scikit-learn.org/stable/modules/model_evaluation.html#explained-variance-score
-    fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, clf.predict(xtest))
-    auc_test = metrics.auc(fpr, tpr); r2test = clf.score(xtest,ytest)
-    # print('R^2 score test:',clf.score(xtest,ytest))
-    # print('RMSE score test: {0:4.3f}'.format(np.sqrt(((clf.predict(xtest)-ytest)**2).mean())))
-    print('AUC test: {0:4.3f}'.format(metrics.auc(fpr, tpr))+' Explained Variance Score Test: {0:4.3f}'.format(metrics.explained_variance_score(ytest, clf.predict(xtest))))
-
-
-
-    feature_headers = np.array(feature_headers)[feature_filter].tolist()
-
-def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, min_occur=0, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]), delay_print=False): #filterSTR='Gender:0 male'
+def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, min_occur=0, lasso_selection=False, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]), delay_print=False): #filterSTR='Gender:0 male'
     """
     Transforms the data to be run for ML analyses. Returns x2, y2, y2label, mrns2, ix_filter, and feature_headers2.
     NOTE: use ix_filter to capture relavent data points from original array as the new dimensions will be differentself.
@@ -497,6 +494,24 @@ def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lo
     else:
         centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew = ['NaN']*7
 
+    if min_occur > 0:
+        if delay_print:
+            x2, feature_headers, print_statements = filter_min_occurrences(x2, feature_headers, min_occur, print_out=not delay_print)
+            reporting += print_statements
+        else:
+            x2, feature_headers = filter_min_occurrences(x2, feature_headers, min_occur, print_out=not delay_print)
+
+    if lasso_selection:
+        model_weights = lasso_filter(x2, y2, y2label, feature_headers, print_out=not delay_print)
+        model_weights_mean = model_weights.mean(axis=0)
+        feature_filter = (model_weights_mean != 0)
+        if delay_print:
+            reporting+= '{0:,d} features with zero weights being filtered. {1:,d} features remaining.\n'.format(len(feature_headers)-feature_filter.sum(), feature_filter.sum())
+        else:
+            print('{0:,d} features with 0 weights being filtered. {1:,d} features remaining.'.format(len(feature_headers)-feature_filter.sum(), feature_filter.sum()))
+        feature_headers = np.array(feature_headers)[feature_filter].tolist()
+        x2 = x2[:,feature_filter]
+
     corr_headers = np.array(feature_headers)
     corr_matrix = np.corrcoef(x2.transpose())
     if delay_print:
@@ -513,16 +528,10 @@ def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lo
             reporting += print_statements
         else:
             x2, feature_headers = variable_subset(x2, variablesubset, feature_headers, print_out=not delay_print)
-    if min_occur > 0:
-        if delay_print:
-            x2, feature_headers, print_statements = filter_min_occurrences(x2, feature_headers, min_occur, print_out=not delay_print)
-            reporting += print_statements
-        else:
-            x2, feature_headers = filter_min_occurrences(x2, feature_headers, min_occur, print_out=not delay_print)
 
     if delay_print:
         reporting += 'output is: average: {0:4.3f}, min: {1:4.3f}, max: {2:4.3f}\n'.format(y2.mean(), y2.min(), y2.max())
-        reporting += 'total patients: {0:,d}, positive: {1:,.2f}, negative: {2:,.2f}\n'.format(y2.shape[0], y2label.sum(), y2.shape[0]-y2label.sum())
+        reporting += 'total patients: {0:,d}, positive: {1:,d}, negative: {2:,d}\n'.format(y2.shape[0], y2label.sum(), y2.shape[0]-y2label.sum())
         reporting += 'normalizing output...\n'
     else:
         print('output is: average: {0:4.3f}, min: {1:4.3f}, max: {2:4.3f}'.format(y2.mean(), y2.min(), y2.max()))
