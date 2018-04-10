@@ -1331,22 +1331,26 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
     percentile: set to False
     prediction: default = 'obese'. obesity threshold for bmi/age percentile for outcome class.
         Source: https://www.cdc.gov/obesity/childhood/defining.html
+        'underweight': 0.0 <= bmi percentile < 0.05
+        'normal': 0.05 <= bmi percentile < 0.85
         'overweight': 0.85 <= bmi percentile < 0.95
         'obese': 0.95 <= bmi percentile <= 1.0
-        'severe1': class I severe obesity; 120% of the 95th percentile
-        'severe2': class II severe obesity; 140% of the 95th percentile
+        'class I severe obesity': class I severe obesity; 120% of the 95th percentile
+        'class II severe obesity': class II severe obesity; 140% of the 95th percentile
+        'multi': multiclass label for columns ['underweight','normal','overweight','obese','class I severe obesity','class II severe obesity']
+            NOTE: will return redundant labels for obese and severe obese classes as they are a subset
     mrnsForFilter: default = []. mrns to create data for.
     """
 
     outcome = np.zeros(len(data_dic.keys()), dtype=float)
-    outcomelabels = np.zeros(len(data_dic.keys()), dtype=float)
-    if prediction == 'overweight':
-        low_pct, high_pct = (0.85,0.95)
-    elif prediction == 'obese':
-        low_pct, high_pct = (0.95,1.)
-    elif prediction in ('severe1','severe2'):
-        pass
+    if prediction != 'multi':
+        np.zeros(len(data_dic.keys()), dtype=float)
+        multi = False
     else:
+        outcomelabels = np.zeros((len(data_dic.keys()), 6), dtype=float)
+        multi = True
+        multi_ix = {'underweight':0,'normal':1,'overweight':2,'obese':3, 'class I severe obesity':[3,4], 'class II severe obesity':[3,5]}
+    if prediction not in ('underweight','normal','overweight','obese','class I severe obesity','class II severe obesity','multi'):
         warnings.warn('Invalid prediction parameter. Using default "obese" thresholds.')
         prediction = 'obese'
 
@@ -1486,14 +1490,14 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
             outcomelabels[ix] = 0
             continue
         outcome[ix] = bmi
-        if prediction == 'overweight':
-            outcomelabels[ix] = 1 if label == 'overweight' else 0
-        elif prediction == 'obese':
-            outcomelabels[ix] = 1 if label in ('obese','class I severe obesity','class II severe obesity') else 0
-        elif prediction == 'severe1':
-            outcomelabels[ix] = 1 if label == 'class I severe obesity' else 0
-        elif prediction == 'severe2':
-            outcomelabels[ix] = 1 if label == 'class II severe obesity' else 0
+        if not multi:
+            if prediction == 'obese':
+                outcomelabels[ix] = 1 if label in ('obese','class I severe obesity','class II severe obesity') else 0
+            else:
+                outcomelabels[ix] = 1 if prediction == label else 0
+        else:
+            outcomelabels[ix,multi_ix[label]] = 1
+
 
         bdate = data_dic[k]['bdate']
         mrns[ix] = data_dic[k]['mrn']
