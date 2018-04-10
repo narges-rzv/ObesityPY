@@ -347,13 +347,13 @@ def run_lasso_single(args):
 
     fpr, tpr, thresholds = metrics.roc_curve(ytrainlabel, clf.predict(xtrain))
     to_print = 'Run {0:d} has {1:,d} non-zero features and {2:,d} zero-weight features\n'.format(run, (clf.coef_ != 0).sum(), (clf.coef_ == 0).sum())
-    to_print += 'R^2 score train: {0:4.3f}\n'.format(clf.score(xtrain,ytrain))
-    to_print += 'RMSE score train: {0:4.3f}\n'.format(np.sqrt(((clf.predict(xtrain)-ytrain)**2).mean()))
-    to_print += 'AUC train: {0:4.3f},  Explained Variance Score Train: {1:4.3f}\n'.format(metrics.auc(fpr, tpr), metrics.explained_variance_score(ytrain, clf.predict(xtrain))) #http://scikit-learn.org/stable/modules/model_evaluation.html#explained-variance-score
+    # to_print += 'R^2 score train: {0:4.3f}\n'.format(clf.score(xtrain,ytrain))
+    # to_print += 'RMSE score train: {0:4.3f}\n'.format(np.sqrt(((clf.predict(xtrain)-ytrain)**2).mean()))
+    to_print += 'AUC Train: {0:4.3f},  Explained Variance Score Train: {1:4.3f}\n'.format(metrics.auc(fpr, tpr), metrics.explained_variance_score(ytrain, clf.predict(xtrain))) #http://scikit-learn.org/stable/modules/model_evaluation.html#explained-variance-score
     fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, clf.predict(xtest))
-    to_print += 'R^2 score train: {0:4.3f}\n'.format(clf.score(xtest,ytest))
-    to_print += 'RMSE score train: {0:4.3f}\n'.format(np.sqrt(((clf.predict(xtest)-ytest)**2).mean()))
-    to_print += 'AUC train: {0:4.3f},  Explained Variance Score Train: {1:4.3f}\n'.format(metrics.auc(fpr, tpr), metrics.explained_variance_score(ytest, clf.predict(xtest))) #http://scikit-learn.org/stable/modules/model_evaluation.html#explained-variance-score
+    # to_print += 'R^2 score train: {0:4.3f}\n'.format(clf.score(xtest,ytest))
+    # to_print += 'RMSE score train: {0:4.3f}\n'.format(np.sqrt(((clf.predict(xtest)-ytest)**2).mean()))
+    to_print += 'AUC Test: {0:4.3f},  Explained Variance Score Test: {1:4.3f}\n'.format(metrics.auc(fpr, tpr), metrics.explained_variance_score(ytest, clf.predict(xtest))) #http://scikit-learn.org/stable/modules/model_evaluation.html#explained-variance-score
     print(to_print)
     return clf.coef_
 
