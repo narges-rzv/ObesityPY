@@ -194,7 +194,116 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
     # print('R^2 score test:',clf.score(xtest,ytest))
     # print('RMSE score test: {0:4.3f}'.format(np.sqrt(((clf.predict(xtest)-ytest)**2).mean())))
     print('AUC test: {0:4.3f}'.format(metrics.auc(fpr, tpr))+' Explained Variance Score Test: {0:4.3f}'.format(metrics.explained_variance_score(ytest, clf.predict(xtest))))
-    return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test)
+    return (clf, xtrain, ytrain, xtest, ytest, ytrainlabel, ytestlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test)
+
+def train_regression_single(args):
+    """
+    Functionally the same as train_regression, but intended to be used with multiprocessing.Pool()
+    """
+    run, x, xtest, y, ytest, ylabel, ytestlabel, percentile, modelType = args
+    import sklearn
+    if modelType == 'lasso':
+        import sklearn.linear_model
+        from sklearn.linear_model import Lasso
+    if modelType == 'mlp':
+        from sklearn.neural_network import MLPRegressor
+    if modelType == 'randomforest':
+        from sklearn.ensemble import RandomForestRegressor
+    if modelType == 'temporalCNN':
+        import cnn
+    if modelType == 'gradientboost':
+        from sklearn.ensemble import GradientBoostingRegressor
+    if modelType == 'lars':
+        from sklearn import linear_model
+
+    N = x.shape[0]
+    ixlist = np.arange(0,N)
+    random.shuffle(ixlist)
+    ix_train = ixlist[0:int(N*2/3)]
+    ix_val = ixlist[int(N*2/3):]
+    xtrain = x[ix_train]
+    ytrain = y[ix_train]
+    xval = x[ix_val]
+    yval =  y[ix_val]
+    yvallabel = ylabel[ix_val]
+    ytrainlabel = ylabel[ix_train]
+
+    best_alpha = -1
+    best_score = -10000
+    if modelType == 'lasso':
+        hyperparamlist = [0.001, 0.005, 0.01, 0.1] #[alpha]
+    if modelType == 'mlp':
+        hyperparamlist = [(10,), (50,), (10,10), (50,10), (100,)] #[hidden_layer_sizes]
+    if modelType == 'randomforest':
+        hyperparamlist = [(est,minSplit,minLeaf) for est in [3000] for minSplit in [2] for minLeaf in (1,2,5,7)] #(2000,2), (2000,4), (2000,10) #[n_estimators, min_samples_split, min_samples_leaf]
+    if modelType == 'temporalCNN':
+        hyperparamlist = [(0.1)]
+    if modelType == 'gradientboost':
+        hyperparamlist = [(1500, 4, 2, 0.01,'lad'), (2500, 4, 2, 0.01,'lad'), (3500, 4, 2, 0.01,'lad')] #[n_estimators, max_depth, min_samples_split, learning_rate, loss]
+    if modelType == 'lars':
+        hyperparamlist = [0.001, 0.01, 0.1]
+
+    results = ''
+    for alpha_i in hyperparamlist:
+        if modelType == 'lasso':
+            clf = Lasso(alpha=alpha_i)
+        if modelType == 'mlp':
+            clf = MLPRegressor(hidden_layer_sizes=alpha_i, solver="lbfgs", verbose=True)
+        if modelType == 'randomforest':
+            clf = RandomForestRegressor(random_state=0, n_estimators=alpha_i[0], min_samples_split=alpha_i[1], min_samples_leaf=alpha_i[2], n_jobs=-1)
+        if modelType == 'gradientboost':
+            clf = GradientBoostingRegressor(n_estimators=alpha_i[0], max_depth=alpha_i[1], min_samples_split=alpha_i[2], learning_rate=alpha_i[3], loss=alpha_i[4])
+        if modelType == 'lars':
+            clf = linear_model.LassoLars(alpha=alpha_i)
+        # if modelType == 'temporalCNN':
+            # xcnndataTrain, xcnndataTest = xtrain.reshape(, xtest # need to be of size |vitals| x |time| x
+            # clf = cnn.TemporalCNN(5, 8, 8, 64, 1)
+            # return (clf, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, 0, 0)
+        clf.fit(xtrain, ytrain)
+        exp_var_test = metrics.explained_variance_score(ytest, clf.predict(xtest)) #roc_auc_score(ytestlabel, clf.predict(xtest))
+        results += 'Bootstrap CV {0:d}, alpha = {1:s}, R^2 train: {2:4.3f}, R^2 test: {3:4.3f}\n'.format(run, str(alpha_i), clf.score(xtrain,ytrain), clf.score(xtest,ytest))
+        if exp_var_test > best_score:
+            best_score = exp_var_test #np.sqrt(((clf.predict(xtest)-ytest)**2).mean())
+            best_alpha = alpha_i
+
+    results += 'best alpha via bootstrap CV: {0:s}\n'.format(str(best_alpha))
+
+    if modelType == 'lasso':
+        clf = Lasso(alpha=best_alpha)
+    if modelType == 'mlp':
+        clf = MLPRegressor(hidden_layer_sizes=best_alpha,solver="lbfgs", verbose=True)
+    if modelType == 'randomforest':
+        clf = RandomForestRegressor(random_state=0, n_estimators=best_alpha[0], min_samples_split=best_alpha[1], min_samples_leaf=best_alpha[2], n_jobs=-1)
+    if modelType == 'gradientboost':
+        clf = GradientBoostingRegressor(n_estimators=best_alpha[0], max_depth=best_alpha[1], min_samples_split=best_alpha[2], learning_rate=best_alpha[3], loss=best_alpha[4])
+    if modelType == 'lars':
+        clf = linear_model.LassoLars(alpha=best_alpha)
+
+    clf.fit(xtrain,ytrain)
+
+    ytrain_pred = clf.predict(xtrain)
+    yval_pred = clf.predict(xval)
+    ytest_pred = clf.predict(xtest)
+    # print('R^2 score train:',clf.score(xtrain,ytrain))
+    # print('RMSE score train: {0:4.3f}'.format(np.sqrt(((clf.predict(xtrain)-ytrain)**2).mean())))
+    fpr, tpr, thresholds = metrics.roc_curve(ytrainlabel, ytrain_pred)
+    results += 'AUC Train: {0:4.3f}, Explained Variance Score Train: {1:4.3f}\n'.format(metrics.auc(fpr, tpr), metrics.explained_variance_score(ytrain, ytrain_pred))
+
+    fpr, tpr, thresholds = metrics.roc_curve(yvallabel, yval_pred)
+    auc_val = metrics.auc(fpr, tpr)
+    r2val = clf.score(xval,yval)
+    var_val = metrics.explained_variance_score(yval, yval_pred)
+    # print('R^2 score test:',clf.score(xtest,ytest))
+    # print('RMSE score test: {0:4.3f}'.format(np.sqrt(((clf.predict(xtest)-ytest)**2).mean())))
+    results += 'AUC Validation: {0:4.3f}, Explained Variance Score Validation: {1:4.3f}\n'.format(auc_val, var_val)
+
+    fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, ytest_pred)
+    auc_test = metrics.auc(fpr, tpr)
+    r2test = clf.score(xtest,ytest)
+    var_test = metrics.explained_variance_score(ytest, ytest_pred)
+    results += 'AUC Test: {0:4.3f}, Explained Variance Score Test: {1:4.3f}\n'.format(auc_test, var_test)
+    print(results)
+    return (clf, auc_val, auc_test, var_val, var_test, r2val, r2test, ix_train, ix_val, results, run)
 
 def normalize(x, filter_percentile_more_than_percent=5, mu=[], std=[], bin_ix=[]):
     unobserved = (x == 0)*1.0
@@ -548,7 +657,7 @@ def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lo
     if (ix_filter.sum() < 50):
         print('Not enough subjects. Next.')
         return (filterSTR, [])
-    return x2, y2, y2label, mrns, ix_filter, feature_headers
+    return x2, y2, y2label, mrns, ix_filter, feature_headers, corr_headers_filtered, corr_matrix_filtered, ix_corr_headers
 
 def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, return_train_test_data=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
 
@@ -623,7 +732,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
             random.shuffle(randix)
             randix = randix[0:int(len(randix)*0.9)]
             datax = x2[randix,:]; datay=y2[randix]; dataylabel = y2label[randix]; mrnx = mrns[randix]
-            (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test) = train_regression(datax, datay, dataylabel, percentile, modelType, feature_headers, mrnx)
+            (model, xtrain, ytrain, xtest, ytest, ytrainlabel, ytestlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test) = train_regression(datax, datay, dataylabel, percentile, modelType, feature_headers, mrnx)
             model_weights_array[iteration, :] = model.coef_ if ((modelType == 'lasso') or (modelType == 'lars')) else model.feature_importances_
             auc_test_list[iteration] = auc_test; r2testlist[iteration] = r2test
 
@@ -646,7 +755,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
             print('lets analyse this')
             return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest, mrns)
     else:
-        (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test) = train_regression(x2, y2, y2label, percentile, modelType, feature_headers, mrnx)
+        (model, xtrain, ytrain, xtest, ytest, ytrainlabel, ytestlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test) = train_regression(x2, y2, y2label, percentile, modelType, feature_headers, mrnx)
         model_weights_conf_term = np.zeros((x2.shape[1]), dtype=float)
         test_auc_mean = auc_test; r2test_mean= r2test;
         test_auc_mean_ste = 0; r2test_ste=0
@@ -761,6 +870,260 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
             return (model, original_data[0], original_data[1], original_data[2], original_data[3], original_data[4], filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
     else:
         return (feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
+
+def train_regression_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_headers_filtered, corr_matrix_filtered, ix_corr_headers, test_ix=[], modelType='lasso', percentile=False, return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, return_train_test_data=False, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])):
+    """
+    Train regression model for predicting obesity outcome. All subsetting of data should be performed with 'prepare_data_for_analysis()'
+    #### PARAMETERS ####
+    For the below features if not using set value to {}
+    x2: data array
+    y2: data to be predicted
+    y2label: obesity label for each child
+    feature_headers: list of features that matches the column space of x1
+    mrns: list of mrns that matches that corresponds to x1
+    test_ix: default []; list of indices to use for the test set. If not larger than 10% of the sample size, then a new set of 20% of N will be created.
+    modelType: default 'lasso'
+        'lasso' - sklearn.linear_model.Lasso
+        'mlp' - sklearn.neural_network.MLPRegressor -- NOT IMPLEMENTED
+        'randomforest' -  sklearn.ensemble.RandomForestRegressor
+        'temporalCNN' - cnn -- NOT IMPLEMENTED
+        'gradientboost' - sklearn.ensemble.GradientBoostingRegressor
+        'lars' - sklearn.linear_model
+    return_data_for_error_analysis: default False; return last trained model with data to analyze model errors
+    return_data: default False; return X, y, y_label, feature_headers, and mrns created in the data creation phase
+        NOTE: this is not the imputed, normalized, binarized, etc. data. 'feature_headers' still returned otherwise.
+    return_data_transformed: default False; if True and return_data==True the transformed data will be returned in place of the original, unaltered data set.
+    return_train_test_data: default False; if True and return_data==TRue the train and test data used in the final analysis will be returned for error analysis
+    get_char_tables: defaut False; save the Table 1 and 2 output to file
+    feature_info: default True; output model feature characteristics post analysis
+    subset: default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]); used to determine timeseries
+    """
+    if modelType == 'mlp':
+        print ('you need to implement gradient to get top weights. ')
+        return
+
+    if modelType == 'lasso' or modelType == 'randomforest' or modelType == 'gradientboost' or modelType == 'lars':
+        iters = 10
+        arguments = []
+        N = x2.shape[0]
+        if len(test_ix) > 0:
+            N_test = len(test_ix)
+        else:
+            N_test = int(N*0.2)
+            test_ix = list(range(0,N))
+            random.shuffle(test_ix)
+            test_ix = test_ix[:N_test]
+
+        N_subset = int(N_test*0.9)
+        train_size = int(N_subset*2/3)
+        val_size = N_subset - train_size
+        model_weights_array = np.zeros((iters, x2.shape[1]), dtype=float)
+        model_list = [''] * iters
+        auc_val_list = np.zeros((iters), dtype=float)
+        r2_val_list = np.zeros((iters), dtype=float)
+        auc_test_list = np.zeros((iters), dtype=float)
+        r2_test_list = np.zeros((iters), dtype=float)
+        var_val_list = np.zeros((iters), dtype=float)
+        var_test_list = np.zeros((iters), dtype=float)
+        randix_track = np.zeros((N_subset, iters), dtype=int)
+        ix_train_track = np.zeros((train_size, iters), dtype=int)
+        ix_val_track = np.zeros((val_size, iters), dtype=int)
+        node_count = max(2,min(math.ceil(multiprocessing.cpu_count()*0.8), multiprocessing.cpu_count()-1))
+
+        xtest = x2[test_ix,:]; ytest = y2[test_ix]; ytestlabel = y2label[test_ix]; mrnstest = mrns[test_ix]
+        for iteration in range(0, iters):
+            randix = [r for r in range(0, N) if r not in test_ix]
+            random.shuffle(randix)
+            randix = randix[0:N_subset]
+            datax = x2[randix,:]; datay=y2[randix]; dataylabel = y2label[randix]; mrnx = mrns[randix]
+            arguments.append([iteration, datax, xtest, datay, ytest, dataylabel, ytestlabel, percentile, modelType])
+            randix_track[:,iteration] = randix
+        if iters > node_count:
+            num_batches = math.ceil(float(iters/node_count))
+            for i in range(num_batches):
+                sub_args = arguments[i*node_count:(i+1)*node_count] if i < num_batches-1 else arguments[i*node_count:]
+                nodes = node_count if i < num_batches-1 else len(arguments) - (i * node_count)
+                print('Running batch {0:d} of {1:d} with {2:d} nodes'.format(i+1, num_batches, nodes))
+                with Pool(node_count) as p:
+                    outputs = p.map(train_regression_single, sub_args)
+                for model, auc_val, auc_test, var_val, var_test, r2val, r2test, ix_train, ix_val, results, iteration in outputs:
+                    ix_train_track[:,iteration] = ix_train
+                    ix_val_track[:,iteration] = ix_val
+                    auc_val_list[iteration] = auc_val
+                    auc_test_list[iteration] = auc_test
+                    var_val_list[iteration] = var_val
+                    var_test_list[iteration] = var_test
+                    r2_val_list[iteration] = r2val
+                    r2_test_list[iteration] = r2test
+                    model_weights_array[iteration,:] = model.coef_ if modelType in ('lasso','lars') else model.feature_importances_
+                    model_list[iteration] = model
+        else:
+            with Pool(min(iters,node_count)) as p:
+                outputs = p.map(train_regression_single, arguments)
+            for model, auc_val, auc_test, var_val, var_test, r2val, r2test, ix_train, ix_val, results, iteration in outputs:
+                ix_train_track[:,iteration] = ix_train
+                ix_val_track[:,iteration] = ix_val
+                auc_val_list[iteration] = auc_val
+                auc_test_list[iteration] = auc_test
+                var_val_list[iteration] = var_val
+                var_test_list[iteration] = var_test
+                r2_val_list[iteration] = r2val
+                r2_test_list[iteration] = r2test
+                model_weights_array[iteration,:] = model.coef_ if modelType in ('lasso','lars') else model.feature_importances_
+                model_list[iteration] = model
+
+        # last = iters - 1
+        best = np.where(np.argsort(auc_test_list)==0)[0][0] # using best test AUC for producing model outputs
+        xtrain = x2[randix_track[:,best],:][ix_train_track[:,best],:]
+        ytrain = y2[randix_track[:,best]][ix_train_track[:,best]]
+        ytrain_label = y2label[randix_track[:,best]][ix_train_track[:,best]]
+        xval = x2[randix_track[:,best]][ix_val_track[:,best],:]
+        yval = y2[randix_track[:,best]][ix_val_track[:,best]]
+        yval_label = y2label[randix_track[:,best]][ix_val_track[:,best]]
+        model = model_list[best]
+
+        model_weights = model_weights_array.mean(axis=0)
+        model_weights_std = model_weights_array.std(axis=0)
+        model_weights_conf_term = (1.96/np.sqrt(iters)) * model_weights_std
+        auc_val_mean = auc_val_list.mean()
+        auc_val_mean_ste = (1.96/np.sqrt(iters)) * auc_val_list.std()
+        var_val_mean = var_val_list.mean()
+        var_val_mean_ste = (1.96/np.sqrt(iters)) * var_val_list.std()
+        r2val_mean = r2_val_list.mean()
+        r2val_ste = (1.96/np.sqrt(iters)) * r2_val_list.std()
+        auc_test_mean = auc_test_list.mean()
+        auc_test_mean_ste = (1.96/np.sqrt(iters)) * auc_test_list.std()
+        var_test_mean = var_test_list.mean()
+        var_test_mean_ste = (1.96/np.sqrt(iters)) * var_test_list.std()
+        r2test_mean = r2_test_list.mean()
+        r2test_ste = (1.96/np.sqrt(iters)) * r2_test_list.std()
+        if return_data_for_error_analysis == True:
+            print('->AUC test: {0:4.3f} 95% CI: [{1:4.3f}, {2:4.3f}]'.format(auc_test_mean, auc_test_mean - auc_test_mean_ste, auc_test_mean + auc_test_mean_ste))
+            print('->Explained Variance (R2) test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(var_test_mean, var_test_mean - var_test_mean_ste,  var_test_mean + var_test_mean_ste))
+            print('lets analyse this')
+            return (model_list, randix_track, ix_train_track, ix_val_track, ix_test_track, auc_val_list, r2_val_list, auc_test_list, r2_test_list)
+########################
+#### REVISIT THIS PART - not essential currently
+    else:
+        (model, xtrain, ytrain, xtest, ytest, ytrainlabel, ytestlabel, auc_test, r2test, mrnstrain, mrnstest, ix_train, ix_test) = train_regression(x2, y2, y2label, percentile, modelType, feature_headers, mrnx)
+        model_weights_conf_term = np.zeros((x2.shape[1]), dtype=float)
+        test_auc_mean = auc_test
+        r2test_mean= r2test
+        test_auc_mean_ste = 0
+        r2test_ste=0
+
+        print('->AUC test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(test_auc_mean, test_auc_mean - test_auc_mean_ste, test_auc_mean + test_auc_mean_ste))
+        print('->Explained Variance (R2) test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(r2test_mean, r2test_mean - r2test_ste,  r2test_mean + r2test_ste))
+        if return_data_for_error_analysis == True:
+            print('lets analyse this')
+            return (model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test)
+########################
+
+    sorted_ix = np.argsort(-1 * abs(model_weights))
+    weights = model_weights[sorted_ix]
+    terms_sorted = model_weights_conf_term[sorted_ix]
+    factors = np.array(feature_headers)[sorted_ix]
+    x2_reordered = x2[:,sorted_ix]
+    xtrain_reordered = xtrain[:,sorted_ix]
+    xtest_reordered = xtest[:,sorted_ix]
+
+    ytestpred = model.predict(xtest)
+    fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, ytestpred)
+    operating_Thresholds = []
+    operating_levels = [0, 0.0001, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99, 0.999, 1]
+    ix_level = 0
+
+    for ix, thr in enumerate(thresholds):
+        if fpr[ix] >= operating_levels[ix_level]:
+            operating_Thresholds.append(thr)
+            ix_level += 1
+            if ix_level == len(operating_levels):
+                break
+
+    operating_Thresholds = np.array(thresholds)
+    report_metrics = 'Test set metrics:\n'
+    results_ix = {'threshold':0,'tp':1,'tn':2,'fn':3,'fp':4,'sensitivity':5,'specificity':6,'accuracy':7,'f1':8,'pos':9,'neg':10}
+    results_cols = [*results_ix]
+    results_arr = np.zeros((operating_Thresholds.ravel().shape[0], len(results_ix)))
+    for ix,t in enumerate(operating_Thresholds):
+        tp = ((ytestlabel > 0) & (ytestpred.ravel() > t)).sum()*1.0
+        tn = ((ytestlabel == 0) & (ytestpred.ravel() <= t)).sum()*1.0
+        fn = ((ytestlabel > 0) & (ytestpred.ravel() <= t)).sum()*1.0
+        fp = ((ytestlabel == 0) & (ytestpred.ravel() > t)).sum()*1.0
+
+        sens = tp / (tp + fn) if (tp + fn) != 0 else 0.0
+        spec = tn / (tn + fp) if (tn + fp) != 0 else 0.0
+        ppv = tp / (tp + fp) if (tp + fp) != 0 else 0.0
+        acc = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) != 0 else 0.0
+        f1 = 2*tp / (2*tp + fp + fn) if (2*tp + fp + fn) != 0 else 0.0
+
+        results_arr[ix,:] = [t,tp,tn,fn,fp,sens,spec,acc,f1,int(tp+fp),int(fn+tn)]
+        report_metrics += '@threshold:{0:4.3f}, sens:{1:4.3f}, spec:{2:4.3f}, ppv:{3:4.3f}, acc:{4:4.3f}, f1:{5:4.3f}, total+:{6:,d}, total-:{7:,d}\n'.format(t, sens, spec, ppv, acc, f1, int(tp+fp), int(tn+fn))
+
+    print('total variables', x2.sum(axis=0).shape[0], ' and total subjects:', x2.shape[0])
+    print('->AUC validation: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(auc_val_mean, auc_val_mean - auc_val_mean_ste, auc_val_mean + auc_val_mean_ste))
+    print('->AUC test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(auc_test_mean, auc_test_mean - auc_test_mean_ste, auc_test_mean + auc_test_mean_ste))
+    print('->Explained Variance (R2) validation: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(var_val_mean, var_val_mean - var_val_mean_ste,  var_val_mean + var_val_mean_ste))
+    print('->Explained Variance (R2) test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(var_test_mean, var_test_mean - var_test_mean_ste,  var_test_mean + var_test_mean_ste))
+    print(report_metrics)
+
+    occurences = (x2 != 0).sum(axis=0)[sorted_ix]
+    zip_weights = {}
+    sig_headers = []
+    feature_categories = {}
+    feature_data = []
+    feature_data_cols = ['feature', 'significant','occurrences','auc','weight/importance','wt_low','wt_high','OR','OR_low','OR_high','OR_adj','OR_adj_low','OR_adj_high',
+        'Top1CorrFeat','Top1CorrVal','Top2CorrFeat','Top2CorrVal','Top3CorrFeat','Top3CorrVal','Top4CorrFeat','Top4CorrVal','Top5CorrFeat','Top5CorrVal',
+        'Top6CorrFeat','Top6CorrVal','Top7CorrFeat','Top7CorrVal','Top8CorrFeat','Top8CorrVal','Top9CorrFeat','Top9CorrVal','Top10CorrFeat','Top10CorrVal'
+        ]
+    for i in range(0, (abs(model_weights)>0).sum()):
+        indiv_data = []
+        fpr, tpr, thresholds = metrics.roc_curve(ytestlabel, xtest_reordered[:,i].ravel())
+        feature_auc_indiv = metrics.auc(fpr, tpr)
+        corrs = corr_matrix_filtered[sorted_ix[i],:].ravel()
+        top_corr_ix = np.argsort(-1*abs(corrs))
+        corr_string = 'Correlated most with:\n'+'    '.join( [str(corr_headers_filtered[top_corr_ix[j]])+ ':' + "{0:4.3f}\n".format(corrs[top_corr_ix[j]]) for j in range(0,10)]  )
+        corrs_list = [(corr_headers_filtered[top_corr_ix[j]],corrs[top_corr_ix[j]] ) for j in range(0,10)]
+        tp = ((y2label > 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
+        tn = ((y2label == 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
+        fn = ((y2label > 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
+        fp = ((y2label == 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
+
+        if fp*fn*tp*tn == 0:
+            oratio = np.nan
+            low_OR = np.nan
+            high_OR = np.nan
+        else:
+            oratio = tp*tn/(fp*fn)
+            se = np.sqrt(1/tp + 1/fp + 1/tn + 1/fn)
+            low_OR = np.exp(np.log(oratio) - 1.96 * se)
+            high_OR = np.exp(np.log(oratio) + 1.96 * se)
+        try:
+            feature_categories[factors[i].split(':')[0]] += weights[i]
+        except:
+            feature_categories[factors[i].split(':')[0]] = weights[i]
+
+        star = ' '
+        sig=False
+        if (low_OR > 1 or high_OR < 1): #or (weights[i]+terms_sorted[i]) < 0 or (weights[i]-terms_sorted[i]) > 0
+            sig_headers.append(factors[i])
+            star = '*'
+            sig=True
+        if feature_info:
+            print("{8} {3} | coef {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}] | OR_adj {9:4.3f} [{10:4.3f} {11:4.3f}] | occ: {4} | OR_unadj: {5:4.3f} [{6:4.3f} {7:4.3f}] | indivs AUC:{12:4.3f}".format(weights[i], weights[i]-terms_sorted[i], weights[i]+terms_sorted[i], factors[i], occurences[i], oratio, low_OR, high_OR, star, np.exp(weights[i]), np.exp(weights[i]-terms_sorted[i]), np.exp(weights[i]+terms_sorted[i]), feature_auc_indiv))
+            print(corr_string)
+
+        feature_data.append([
+            factors[i],sig,occurences[i],feature_auc_indiv,weights[i],weights[i]-terms_sorted[i],weights[i]+terms_sorted[i],oratio,low_OR,high_OR,
+            np.exp(weights[i]),np.exp(weights[i]-terms_sorted[i]),np.exp(weights[i]+terms_sorted[i]),corrs_list[0][0],corrs_list[0][1],corrs_list[1][0],corrs_list[1][1],
+            corrs_list[2][0],corrs_list[2][1],corrs_list[3][0],corrs_list[3][1],corrs_list[4][0],corrs_list[4][1],corrs_list[5][0],corrs_list[5][1],corrs_list[6][0],
+            corrs_list[6][1],corrs_list[7][0],corrs_list[7][1],corrs_list[8][0],corrs_list[8][1],corrs_list[9][0],corrs_list[9][1]
+            ])
+
+    for k in feature_categories:
+        print (k, ":", feature_categories[k])
+
+    return (model_list, randix_track, ix_train_track, ix_val_track, test_ix, results_arr, results_cols, feature_data, feature_data_cols, auc_val_mean, auc_val_mean_ste, var_val_mean, var_val_mean_ste, r2val_mean, r2val_ste, auc_test_mean, auc_test_mean_ste, var_test_mean, var_test_mean_ste, r2test_mean, r2test_ste)
 
 def analyse_errors(model, xtrain, ytrain, xtest, ytest, ytestlabel, ytrainlabel, auc_test, r2test, feature_headers, centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew, mrnstrain, mrnstest):
     pred = model.predict(xtrain)
