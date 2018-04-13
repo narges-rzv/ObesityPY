@@ -1549,7 +1549,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
 
     zscores = np.zeros((len(mrns),len(zscore_headers)))
     zscores_gain = np.zeros((len(mrns),len(zscore_gain_headers)))
-    for ix, age in enumerate(['-avg0to1','-avg1to3','-avg3to5','-avg5to7','-avg7to10','-avg10to13','-avg13to16','-avg16to19','-avg19to24']):
+    for ix, age in enumerate(['-AtBirth','-avg0to1','-avg1to3','-avg3to5','-avg5to7','-avg7to10','-avg10to13','-avg13to16','-avg16to19','-avg19to24', '-latest']):
         wts = features[:,headers.index('Vital: Wt'+age)]
         hts = features[:,headers.index('Vital: Ht'+age)]
         genders = features[:,headers.index('Gender:1 female')]
