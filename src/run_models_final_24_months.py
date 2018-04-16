@@ -84,13 +84,12 @@ for gender in [*data]:
                     feature_info=False,
                     delay_print=False,
                     lasso_selection=lasso_sel)
-        corr_headers_filtered = np.array(corr_headers_filtered) if type(corr_headers_filtered) == list else corr_headers_filtered
-        ix_corr_headers = np.array(ix_corr_headers) if type(ix_corr_headers) == list else ix_corr_headers
-        data[gender][subset][filt][data] = [x2, y2, y2label, mrns2, ix_filter, feature_headers2, corr_headers_filtered, corrs_matrix_filterd, ix_corr_headers]
-        fname=newdir+'/'+'_'.join(['x2',gender,months_to,'months_obese',subset,filt])
-        np.savez_compressed(fname, x2=x2, mrns2=mrns2, features2=np.array(feature_headers2), y2=y2, y2label=y2label, corr_mat=corrs_matrix_filterd, ix_corr_headers=ix_corr_headers, corr_headers_filtered=corr_headers_filtered)
-        print('data saved to',fname)
-
+            corr_headers_filtered = np.array(corr_headers_filtered) if type(corr_headers_filtered) == list else corr_headers_filtered
+            ix_corr_headers = np.array(ix_corr_headers) if type(ix_corr_headers) == list else ix_corr_headers
+            data[gender][subset][filt]['data'] = [x2, y2, y2label, mrns2, ix_filter, feature_headers2, corr_headers_filtered, corrs_matrix_filterd, ix_corr_headers]
+            fname=newdir+'/'+'_'.join(['x2',str(gender),str(months_to),'months_obese',str(subset),str(filt)])
+            np.savez_compressed(fname, x2=x2, mrns2=mrns2, features2=np.array(feature_headers2), y2=y2, y2label=y2label, corr_mat=corrs_matrix_filterd, ix_corr_headers=ix_corr_headers, corr_headers_filtered=corr_headers_filtered)
+            print('data saved to',fname)
 
 
 title_list = []
@@ -123,13 +122,13 @@ for gender in [*data]:
                 exp_var_list.append([exp_var_val_mean, exp_var_val_mean_ste, exp_var_test_mean, exp_var_test_mean_ste])
                 results_list.append(results_arr)
                 features_list.append(feature_data)
-                fname = newdir+'_'.join(['/'+gender,str(months_to),'months_obese',model_type,'index',subset,filt])
+                fname = newdir+'_'.join(['/'+str(gender),str(months_to),'months_obese',str(model_type),'index',str(subset),str(filt)])
                 np.savez_compressed(fname, cv_ix=randix_track, train_ix=ix_train_track, val_ix=ix_val_track, test_ix=test_ix)
                 print('Train/Validation/Test indices saved to:',fname)
-                fname = newdir+'_'.join(['/'+gender,str(months_to),'months_obese',model_type,'results',subset,filt])
+                fname = newdir+'_'.join(['/'+str(gender),str(months_to),'months_obese',str(model_type),'results',str(subset),str(filt)])
                 np.savez_compressed(fname, results=results_arr, results_cols=results_cols, features=feature_data, feature_cols=feature_data_cols)
                 print('Train/Validation/Test indices saved to:',fname)
-                fname = newdir+'_'.join(['/'+gender,str(months_to),'months_obese',model_type,'models',subset,filt])
+                fname = newdir+'_'.join(['/'+str(gender),str(months_to),'months_obese',str(model_type),'models',str(subset),str(filt)])
                 pickle.dump(model_list, open(fname, 'wb'))
                 print('Train/Validation/Test indices saved to:',fname)
 
