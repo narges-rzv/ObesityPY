@@ -1042,7 +1042,7 @@ def train_regression_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mr
 
     operating_Thresholds = np.array(thresholds)
     report_metrics = 'Test set metrics:\n'
-    results_ix = {'threshold':0,'tp':1,'tn':2,'fn':3,'fp':4,'sensitivity':5,'specificity':6,'accuracy':7,'f1':8,'pos':9,'neg':10}
+    results_ix = {'threshold':0,'tp':1,'tn':2,'fn':3,'fp':4, 'ppv':5,'sensitivity':6,'specificity':7,'accuracy':8,'f1':9,'pos':10,'neg':11}
     results_cols = [*results_ix]
     results_arr = np.zeros((operating_Thresholds.ravel().shape[0], len(results_ix)))
     for ix,t in enumerate(operating_Thresholds):
@@ -1057,7 +1057,7 @@ def train_regression_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mr
         acc = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) != 0 else 0.0
         f1 = 2*tp / (2*tp + fp + fn) if (2*tp + fp + fn) != 0 else 0.0
 
-        results_arr[ix,:] = [t,tp,tn,fn,fp,sens,spec,acc,f1,int(tp+fp),int(fn+tn)]
+        results_arr[ix,:] = [t,tp,tn,fn,fp,ppv,sens,spec,acc,f1,int(tp+fp),int(fn+tn)]
         report_metrics += '@threshold:{0:4.3f}, sens:{1:4.3f}, spec:{2:4.3f}, ppv:{3:4.3f}, acc:{4:4.3f}, f1:{5:4.3f}, total+:{6:,d}, total-:{7:,d}\n'.format(t, sens, spec, ppv, acc, f1, int(tp+fp), int(tn+fn))
 
     print('total variables', x2.sum(axis=0).shape[0], ' and total subjects:', x2.shape[0])
@@ -1082,8 +1082,11 @@ def train_regression_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mr
         feature_auc_indiv = metrics.auc(fpr, tpr)
         corrs = corr_matrix_filtered[sorted_ix[i],:].ravel()
         top_corr_ix = np.argsort(-1*abs(corrs))
-        corr_string = 'Correlated most with:\n'+'    '.join( [str(corr_headers_filtered[top_corr_ix[j]])+ ':' + "{0:4.3f}\n".format(corrs[top_corr_ix[j]]) for j in range(0,10)]  )
-        corrs_list = [(corr_headers_filtered[top_corr_ix[j]],corrs[top_corr_ix[j]] ) for j in range(0,10)]
+        corr_string = 'Correlated most with:\n'+'    '.join( [str(corr_headers_filtered[top_corr_ix[j]])+ ':' + "{0:4.3f}\n".format(corrs[top_corr_ix[j]]) for j in range(0,min(len(top_corr_ix),10))]  )
+        try:
+            corrs_list = [(corr_headers_filtered[top_corr_ix[j]],corrs[top_corr_ix[j]] ) for j in range(10)]
+        except:
+            corrs_list = [(corr_headers_filtered[top_corr_ix[j]],corrs[top_corr_ix[j]] ) for j in range(0,len(top_corr_ix))] + [('',0) for j in range(0,10-len(top_corr_ix))]
         tp = ((y2label > 0) & (x2_reordered[:,i].ravel() > 0)).sum()*1.0
         tn = ((y2label == 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
         fn = ((y2label > 0) & (x2_reordered[:,i].ravel() <= 0)).sum()*1.0
