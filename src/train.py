@@ -1556,7 +1556,6 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
             'Mexico':['Maternal-birthplace:MEXICO']
          },
          'Maternal Diagnosis':{
-             'Nutritional diagnosis':['Maternal Diagnosis:9ccs52:Nutrit defic','Maternal Diagnosis:10ccs52:Nutrit defic'],
              'Diabetes Mellitus in pregnancy':['Maternal Diagnosis:9ccs186:DM in preg','Maternal Diagnosis:10ccs186:DM in preg'],
              'Diabetes Mellitus without complications':[['Maternal Diagnosis:9ccs186:DM in preg','Maternal Diagnosis:10ccs186:DM in preg'],
                 ['Maternal Diagnosis:9ccs195:Ot compl bir','Maternal Diagnosis:10ccs195:Ot compl bir']],
@@ -1570,12 +1569,11 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
              'Liver Diseases':['Diagnosis:9ccs151:Oth liver dx','Diagnosis:10ccs151:Oth liver dx'],
              'Skin Diseases':['Diagnosis:9ccs198:Ot infl skin','Diagnosis:10ccs198:Ot infl skin'],
              'Kidney Diseases':['Diagnosis:9ccs161:Ot dx kidney','Diagnosis:10ccs161:Ot dx kidney'],
-             'Circulatory Diseases':['Diagnosis:9ccs117:Ot circul dx','Diagnosis:10ccs117:Ot circul dx'],
-             'Pneumonia':['Diagnosis:9ccs129:Asp pneumon','Diagnosis:10ccs129:Asp pneumon']
+             'Circulatory Diseases':['Diagnosis:9ccs117:Ot circul dx','Diagnosis:10ccs117:Ot circul dx']
                              }
     }
     headers2 = ['Variable','Total N','Total Average', 'Total SD','Pos N','Pos Average', 'Pos SD','Neg N','Neg Average', 'Neg SD','p-value']
-    features2 = ['Vital: Wt for Len Percentile-avg19to24','Vital: BMI-avg19to24','Vital: Wt for Len Percentile-avg16to19','Vital: BMI-avg16to19']
+    features2 = ['Vital: Wt for Length ZScore-avg19to24','Vital: BMI-avg19to24','Vital: Wt for Length ZScore-latest','Vital: BMI-latest']
 
     df1 = []
     with np.errstate(divide='ignore', invalid='ignore'):
