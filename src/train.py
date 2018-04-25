@@ -235,10 +235,17 @@ def train_regression_single(args):
     if modelType == 'mlp':
         hyperparamlist = [(10,), (50,), (10,10), (50,10), (100,)] #[hidden_layer_sizes]
     if modelType == 'randomforest':
+        # Expanded search
+        # hyperparamlist = [(est,minSplit,minLeaf,maxDepth) for est in [1000,2000,3000] for minSplit in [2,4,6] for minLeaf in (1,2,5,7) for maxDepth in (20,50,70,100,None)] #(2000,2), (2000,4), (2000,10) #[n_estimators, min_samples_split, min_samples_leaf]
+        # Limited search
         hyperparamlist = [(est,minSplit,minLeaf) for est in [3000] for minSplit in [2] for minLeaf in (1,2,5,7)] #(2000,2), (2000,4), (2000,10) #[n_estimators, min_samples_split, min_samples_leaf]
     if modelType == 'temporalCNN':
         hyperparamlist = [(0.1)]
     if modelType == 'gradientboost':
+        #[loss, learning_rate, n_estimators, max_depth, min_samples_split]
+        # Expanded search
+        # hyperparamlist = [(loss, learn, est, maxDepth, minLeaf) for loss in ('lad','huber') for learn in (0.001, 0.01, 0.1) for est in (500,1000,2000,3000) for maxDepth in (20,50,70,None) for minLeaf in (2,4,6)]
+        # Limited search
         hyperparamlist = [(1500, 4, 2, 0.01,'lad'), (2500, 4, 2, 0.01,'lad'), (3500, 4, 2, 0.01,'lad')] #[n_estimators, max_depth, min_samples_split, learning_rate, loss]
     if modelType == 'lars':
         hyperparamlist = [0.001, 0.01, 0.1]
@@ -250,8 +257,14 @@ def train_regression_single(args):
         if modelType == 'mlp':
             clf = MLPRegressor(hidden_layer_sizes=alpha_i, solver="lbfgs", verbose=True)
         if modelType == 'randomforest':
+            # Expanded search
+            # clf = RandomForestRegressor(random_state=0, n_estimators=alpha_i[0], min_samples_split=alpha_i[1], min_samples_leaf=alpha_i[2], max_depth=alpha_i[3], n_jobs=-1)
+            # Limited Search
             clf = RandomForestRegressor(random_state=0, n_estimators=alpha_i[0], min_samples_split=alpha_i[1], min_samples_leaf=alpha_i[2], n_jobs=-1)
         if modelType == 'gradientboost':
+            # Expanded search
+            # clf = GradientBoostingRegressor(loss=alpha_i[0], learning_rate=alpha_i[1], n_estimators=alpha_i[2], max_depth=alpha_i[3], min_samples_split=alpha_i[4])
+            # Limited search
             clf = GradientBoostingRegressor(n_estimators=alpha_i[0], max_depth=alpha_i[1], min_samples_split=alpha_i[2], learning_rate=alpha_i[3], loss=alpha_i[4])
         if modelType == 'lars':
             clf = linear_model.LassoLars(alpha=alpha_i)
@@ -273,8 +286,14 @@ def train_regression_single(args):
     if modelType == 'mlp':
         clf = MLPRegressor(hidden_layer_sizes=best_alpha,solver="lbfgs", verbose=True)
     if modelType == 'randomforest':
+        # Expanded search
+        # clf = RandomForestRegressor(random_state=0, n_estimators=best_alpha[0], min_samples_split=best_alpha[1], min_samples_leaf=best_alpha[2],max_depth=best_alpha[3], n_jobs=-1)
+        # Limited search
         clf = RandomForestRegressor(random_state=0, n_estimators=best_alpha[0], min_samples_split=best_alpha[1], min_samples_leaf=best_alpha[2], n_jobs=-1)
     if modelType == 'gradientboost':
+        # Expanded search
+        # clf = GradientBoostingRegressor(loss=best_alpha[0], learning_rate=best_alpha[1], n_estimators=best_alpha[2], max_depth=best_alpha[3], min_samples_split=best_alpha[4])
+        # Limited search
         clf = GradientBoostingRegressor(n_estimators=best_alpha[0], max_depth=best_alpha[1], min_samples_split=best_alpha[2], learning_rate=best_alpha[3], loss=best_alpha[4])
     if modelType == 'lars':
         clf = linear_model.LassoLars(alpha=best_alpha)
@@ -345,11 +364,17 @@ def train_classification_single(args):
     if modelType == 'mlp':
         hyperparamlist = [(10,), (50,), (10,10), (50,10), (100,)] #[hidden_layer_sizes]
     if modelType == 'randomforest':
+        # Expanded search
+        # hyperparamlist = [(est,minSplit,minLeaf,maxDepth) for est in [1000,2000,3000] for minSplit in [2,4,6] for minLeaf in (1,2,5,7) for maxDepth in (20,50,70,100,None)] #(2000,2), (2000,4), (2000,10) #[n_estimators, min_samples_split, min_samples_leaf]
+        # Limited search
         hyperparamlist = [(est,minSplit,minLeaf) for est in [3000] for minSplit in [2] for minLeaf in (1,2,5,7)] #(2000,2), (2000,4), (2000,10) #[n_estimators, min_samples_split, min_samples_leaf]
     if modelType == 'temporalCNN':
         hyperparamlist = [(0.1)]
     if modelType == 'gradientboost':
-        hyperparamlist = [(1500, 4, 2, 0.01,'exponential'), (2500, 4, 2, 0.01,'exponential'), (3500, 4, 2, 0.01,'exponential')] #[n_estimators, max_depth, min_samples_split, learning_rate, loss]
+        # Expanded search
+        # hyperparamlist = [(loss, learn, est, maxDepth, minLeaf) for loss in ['deviance'] for learn in (0.001, 0.01, 0.1) for est in (500,1000,2000,3000) for maxDepth in (20,50,70,None) for minLeaf in (2,4,6)]
+        # Limited search
+        hyperparamlist = [(1500, 4, 2, 0.01,'deviance'), (2500, 4, 2, 0.01,'deviance'), (3500, 4, 2, 0.01,'deviance')] #[n_estimators, max_depth, min_samples_split, learning_rate, loss]
 
     results = ''
     for alpha_i in hyperparamlist:
@@ -358,8 +383,14 @@ def train_classification_single(args):
         if modelType == 'mlp':
             clf = MLPClassifier(hidden_layer_sizes=alpha_i, solver="lbfgs", verbose=True)
         if modelType == 'randomforest':
+            # Expanded search
+            # clf = RandomForestClassifier(random_state=0, n_estimators=alpha_i[0], min_samples_split=alpha_i[1], min_samples_leaf=alpha_i[2], max_depth=alpha_i[3], n_jobs=-1)
+            # Limited search
             clf = RandomForestClassifier(random_state=0, n_estimators=alpha_i[0], min_samples_split=alpha_i[1], min_samples_leaf=alpha_i[2], n_jobs=-1)
         if modelType == 'gradientboost':
+            # Expanded search
+            # clf = GradientBoostingClassifier(loss=alpha_i[0], learning_rate=alpha_i[1], n_estimators=alpha_i[2], max_depth=alpha_i[3], min_samples_split=alpha_i[4])
+            # Limited search
             clf = GradientBoostingClassifier(n_estimators=alpha_i[0], max_depth=alpha_i[1], min_samples_split=alpha_i[2], learning_rate=alpha_i[3], loss=alpha_i[4])
         # if modelType == 'temporalCNN':
             # xcnndataTrain, xcnndataTest = xtrain.reshape(, xtest # need to be of size |vitals| x |time| x
@@ -384,8 +415,14 @@ def train_classification_single(args):
     if modelType == 'mlp':
         clf = MLPClassifier(hidden_layer_sizes=best_alpha,solver="lbfgs", verbose=True)
     if modelType == 'randomforest':
+        # Expanded search
+        # clf = RandomForestClassifier(random_state=0, n_estimators=best_alpha[0], min_samples_split=best_alpha[1], min_samples_leaf=best_alpha[2], max_depth=best_alpha[3], n_jobs=-1)
+        # Limited search
         clf = RandomForestClassifier(random_state=0, n_estimators=best_alpha[0], min_samples_split=best_alpha[1], min_samples_leaf=best_alpha[2], n_jobs=-1)
     if modelType == 'gradientboost':
+        # Expanded search
+        # clf = GradientBoostingClassifier(loss=best_alpha[0], learning_rate=best_alpha[1], n_estimators=best_alpha[2], max_depth=best_alpha[3], min_samples_split=best_alpha[4])
+        # Limited search
         clf = GradientBoostingClassifier(n_estimators=best_alpha[0], max_depth=best_alpha[1], min_samples_split=best_alpha[2], learning_rate=best_alpha[3], loss=best_alpha[4])
 
     clf.fit(xtrain,ytrainlabel)
@@ -980,7 +1017,7 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
     else:
         return (feature_headers, filterSTR, sig_headers, centroids, hnew, standardDevCentroids, cnt_clusters, muxnew, stdxnew, mrns, prec_list, recall_list, spec_list, test_auc_mean, test_auc_mean_ste, r2test_mean, r2test_ste)
 
-def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_headers_filtered, corr_matrix_filtered, ix_corr_headers, test_ix=[], modelType='lasso',regression=True, percentile=False, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])):
+def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_headers_filtered, corr_matrix_filtered, ix_corr_headers, test_ix=[], iters=10, modelType='lasso',regression=True, percentile=False, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])):
     """
     Train regression model for predicting obesity outcome. All subsetting of data should be performed with 'prepare_data_for_analysis()'
     Returns: (model_list, randix_track, ix_train_track, ix_val_track, test_ix, results_arr, results_cols, feature_data, feature_data_cols,
@@ -996,6 +1033,7 @@ def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_he
     feature_headers: list of features that matches the column space of x1
     mrns: list of mrns that matches that corresponds to x1
     test_ix: default []; list of indices to use for the test set. If not larger than 10% of the sample size, then a new set of 20% of N will be created.
+    iters: default 10; number of iterations in bootstrap cross validation
     modelType: default 'lasso'
         'lasso' - sklearn.linear_model.Lasso/LogisticRegression
         'mlp' - sklearn.neural_network.MLPRegressor/Classifier -- NOT IMPLEMENTED
@@ -1019,7 +1057,6 @@ def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_he
         return
 
     if modelType == 'lasso' or modelType == 'randomforest' or modelType == 'gradientboost':
-        iters = 10
         arguments = []
         N = x2.shape[0]
         if len(test_ix) > 0:
