@@ -48,8 +48,10 @@ medslist = '../auxdata/meds.txt'
 
 CDC_BMI_Ref = '../auxdata/CDC_BMIs.txt'
 CDC_BMI_95 = '../auxdata/CDC_BMI_95.txt'
-wght4leng_girl = '../auxdata/wfh_girls_p_exp.txt'
-wght4leng_boy = '../auxdata/wfh_boys_p_exp.txt'
+wght4leng_girl = '../auxdata/WHO_wfl_girls_p_exp.txt'
+wght4leng_boy = '../auxdata/WHO_wfl_boys_p_exp.txt'
+bmi_girl = '../auxdata/CDC_bmi_age_girls.csv'
+bmi_boy = '../auxdata/CDC_bmi_age_boys.csv'
 
 timeList = '../auxdata/time_list.txt'  #ROB
 
