@@ -46,6 +46,17 @@ for months_to in [6,12,18,24,36,48]:
     else:
         filter_str = ['Vital: Wt-avg0to1','Vital: Wt-avg1to3','Vital: Wt-avg10to13','Vital: Wt-avg19to24','Vital: BMI-avg0to1','Vital: BMI-avg1to3','Vital: BMI-avg10to13','Vital: BMI-avg19to24']
 
+    # Get the table statistics for each of the prediction points
+    ix_filter_boys, x2_boys, y2_boys, y2label_boys_obese, mrns_boys = train.filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR=filter_str+['Gender:0'], mrns=mrns, percentile=False)
+    ix_filter_girls, x2_girls, y2_girls, y2label_girls_obese, mrns_girls = train.filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR=filter_str+['Gender:1'], mrns=mrns, percentile=False)
+    x2 = np.vstack((x2_boys, x2_girls))
+    y2 = np.vstack((y2_boys.reshape(-1,1), y2_girls.reshape(-1,1))).ravel()
+    y2label_obese = np.vstack((y2label_boys_obese.reshape(-1,1), y2label_girls_obese.reshape(-1,1))).ravel()
+    statsdir = time.strftime("table_stats_%Y%m%d_")+str(months_from)+'to'+str(months_to)+'months_'+str(agex_low)+'to'+str(agex_high)+'years'
+    if not os.path.exists(statsdir):
+        os.mkdir(statsdir)
+    train.get_stat_table(x2, y2, y2label_obese, feature_headers, folder=statsdir)
+
     print('\nPredicting obesity at 5 years from %d months' %(months_to))
     for modeltype_ix in ['lasso','randomforest', 'gradientboost']:
         for ix, gender in enumerate(['boys', 'girls']):
@@ -66,8 +77,8 @@ for months_to in [6,12,18,24,36,48]:
                             return_train_test_data=True,
                             do_impute=False)
 
-            np.savez_compressed(newdir+'/train_data_'+'_'.join([modeltype_ix,gender_clean,str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
-            np.savez_compressed(newdir+'/test_data_'+'_'.join([modeltype_ix,gender_clean,str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
+            # np.savez_compressed(newdir+'/train_data_'+'_'.join([modeltype_ix,gender_clean,str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
+            # np.savez_compressed(newdir+'/test_data_'+'_'.join([modeltype_ix,gender_clean,str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
             np.savez_compressed(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,str(months_to),'months']), x=x2, mrns=mrns2, features=np.array(feature_headers2), y=y2, ylabel=y2label, ix2=ix_filter, modeling_ix=randix, train_ix=ix_train, test_ix=ix_test)
 
             titles_total.append(gender_clean + ' - ' + modeltype_ix + '@ ' + str(months_to) + 'months')
@@ -93,8 +104,8 @@ for months_to in [6,12,18,24,36,48]:
                             return_train_test_data=True,
                             do_impute=False)
 
-            np.savez_compressed(newdir+'/train_data_comb_'+'_'.join([modeltype_ix,gender_clean,'no_vitals_no_mat',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
-            np.savez_compressed(newdir+'/testdata_comb_'+'_'.join([modeltype_ix,gender_clean,'no_vitals_no_mat',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
+            # np.savez_compressed(newdir+'/train_data_comb_'+'_'.join([modeltype_ix,gender_clean,'no_vitals_no_mat',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
+            # np.savez_compressed(newdir+'/testdata_comb_'+'_'.join([modeltype_ix,gender_clean,'no_vitals_no_mat',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
             np.savez_compressed(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,'no_vitals_no_mat',str(months_to),'months']), x=x2, mrns=mrns2, features=np.array(feature_headers2), y=y2, ylabel=y2label, ix2=ix_filter, modeling_ix=randix, train_ix=ix_train, test_ix=ix_test)
 
             titles_total.append(gender_clean + ' no weight and bmi - ' + modeltype_ix + ' @ ' + str(months_to) + ' months')
@@ -120,8 +131,8 @@ for months_to in [6,12,18,24,36,48]:
                             return_train_test_data=True,
                             do_impute=False)
 
-            np.savez_compressed(newdir+'/train_data_comb_'+'_'.join([modeltype_ix,gender_clean,'no_exclusion',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
-            np.savez_compressed(newdir+'/testdata_comb_'+'_'.join([modeltype_ix,gender_clean,'no_exclusion',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
+            # np.savez_compressed(newdir+'/train_data_comb_'+'_'.join([modeltype_ix,gender_clean,'no_exclusion',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
+            # np.savez_compressed(newdir+'/testdata_comb_'+'_'.join([modeltype_ix,gender_clean,'no_exclusion',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
             np.savez_compressed(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,'no_exclusion',str(months_to),'months']), x=x2, mrns=mrns2, features=np.array(feature_headers2), y=y2, ylabel=y2label, ix2=ix_filter, modeling_ix=randix, train_ix=ix_train, test_ix=ix_test)
 
             titles_total.append(gender_clean + ' no exclusions - ' + modeltype_ix + '@ ' + str(months_to) + 'months')
@@ -147,8 +158,8 @@ for months_to in [6,12,18,24,36,48]:
                             return_train_test_data=True,
                             do_impute=False)
 
-            np.savez_compressed(newdir+'/train_data_'+'_'.join([modeltype_ix,gender_clean,'Vital_BMI_latest',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
-            np.savez_compressed(newdir+'/test_data_'+'_'.join([modeltype_ix,gender_clean,'Vital_BMI_latest',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
+            # np.savez_compressed(newdir+'/train_data_'+'_'.join([modeltype_ix,gender_clean,'Vital_BMI_latest',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
+            # np.savez_compressed(newdir+'/test_data_'+'_'.join([modeltype_ix,gender_clean,'Vital_BMI_latest',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
             np.savez_compressed(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,'Vital_BMI_latest',str(months_to),'months']), x=x2, mrns=mrns2, features=np.array(feature_headers2), y=y2, ylabel=y2label, ix2=ix_filter, modeling_ix=randix, train_ix=ix_train, test_ix=ix_test)
 
             titles_total.append(gender_clean + ' Vital: BMI-latest - ' + modeltype_ix + ' @ ' + str(months_to) + 'months')
@@ -174,8 +185,8 @@ for months_to in [6,12,18,24,36,48]:
                             return_train_test_data=True,
                             do_impute=False)
 
-            np.savez_compressed(newdir+'/train_data_'+'_'.join([modeltype_ix,gender_clean,'Vital_Wt_latest',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
-            np.savez_compressed(newdir+'/test_data_'+'_'.join([modeltype_ix,gender_clean,'Vital_Wt_latest',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
+            # np.savez_compressed(newdir+'/train_data_'+'_'.join([modeltype_ix,gender_clean,'Vital_Wt_latest',str(months_to),'months']), x=xtrain, mrns=mrnstrain, features=np.array(feature_headers2), y=ytrain, ylabel=ytrainlabel)
+            # np.savez_compressed(newdir+'/test_data_'+'_'.join([modeltype_ix,gender_clean,'Vital_Wt_latest',str(months_to),'months']), x=xtest, mrns=mrnstest, features=np.array(feature_headers2), y=ytest, ylabel=ytestlabel)
             np.savez_compressed(newdir+'/data_transformed_'+'_'.join([modeltype_ix,gender_clean,'Vital_Wt_latest',str(months_to),'months']), x=x2, mrns=mrns2, features=np.array(feature_headers2), y=y2, ylabel=y2label, ix2=ix_filter, modeling_ix=randix, train_ix=ix_train, test_ix=ix_test)
 
             titles_total.append(gender_clean + ' Vital: Wt-latest - ' + modeltype_ix + ' - ' + ' @ ' + str(months_to) + 'months')
