@@ -78,6 +78,8 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
     # pdb.set_trace()
     if (len(filterSTR) != 0) and (percentile == False):
         ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()) & ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+    else:
+        ix = (y > 10) & (y < 40) & ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
     if print_out:
         print('total number of people who have a BMI measured:', sum((y > 10) & (y < 40)))
         print('total number of people who have all filtered variables:', (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
@@ -505,11 +507,18 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2la
 
 def filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude, print_out=True):
     ix_header = np.ones((len(corr_headers)), dtype=bool)
+    # if len(corr_headers) == 1:
+    #     if print_out:
+    #         return corr_headers, np.array([[corr_matrix]]), ix_header
+    #     else:
+    #         return corr_headers, corr_matrix, ix_header
+    if len(corr_headers) == 1:
+        corr_matrix = np.array([[corr_matrix]])
     for ind, item in enumerate(corr_headers):
         if (item in corr_vars_exclude) or sum([item.startswith(ii) for ii in corr_vars_exclude]) > 0 :
             ix_header[ind] = False
     if print_out:
-        print(ix_header.sum())
+        print('filtered correlated features to: {0:,d}'.format(ix_header.sum()))
         return corr_headers[ix_header], corr_matrix[:,ix_header], ix_header
     else:
         print_statements = 'filtered correlated features to: {0:,d}'.format(ix_header.sum())
@@ -756,6 +765,13 @@ def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lo
         else:
             x2, feature_headers = filter_min_occurrences(x2, feature_headers, min_occur, print_out=not delay_print)
 
+    if len(variablesubset) != 0:
+        if delay_print:
+            x2, feature_headers, print_statements, print_statements = variable_subset(x2, variablesubset, feature_headers, print_out=not delay_print)
+            reporting += print_statements
+        else:
+            x2, feature_headers = variable_subset(x2, variablesubset, feature_headers, print_out=not delay_print)
+
     if lasso_selection:
         model_weights = lasso_filter(x2, y2, y2label, feature_headers, print_out=not delay_print)
         model_weights_mean = model_weights.mean(axis=0)
@@ -776,13 +792,6 @@ def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lo
     else:
         corr_headers_filtered, corr_matrix_filtered, ix_corr_headers = filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude, print_out=not delay_print)
         print('corr matrix is filtered to size: '+ str(corr_matrix_filtered.shape))
-
-    if len(variablesubset) != 0:
-        if delay_print:
-            x2, feature_headers, print_statements, print_statements = variable_subset(x2, variablesubset, feature_headers, print_out=not delay_print)
-            reporting += print_statements
-        else:
-            x2, feature_headers = variable_subset(x2, variablesubset, feature_headers, print_out=not delay_print)
 
     if delay_print:
         reporting += 'output is: average: {0:4.3f}, min: {1:4.3f}, max: {2:4.3f}\n'.format(y2.mean(), y2.min(), y2.max())

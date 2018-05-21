@@ -8,7 +8,7 @@ import os
 #Get the data
 d1 = pickle.load(open('../python objects/patientdata_20170823.pkl', 'rb'))
 d1mom = pickle.load(open('../python objects/patient_mother_data_20170724.pkl', 'rb'))
-lat_lon_dic = pickle.load(open('../python objects/lat_lon_data_20170920.pkl', 'rb'))
+lat_lon_dic = pickle.load(open('../python objects/lat_lon_data_20180305.pkl', 'rb'))
 env_dic= pickle.load(open('../python objects/census_data_20170920.pkl', 'rb'))
 d1mom_hist = pickle.load(open('../python objects/full_lutheran_mother_data.pkl', 'rb'))
 
