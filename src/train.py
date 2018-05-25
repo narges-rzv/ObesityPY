@@ -18,7 +18,6 @@ import outcome_def_pediatric_obesity
 from dateutil import parser
 from sklearn import metrics
 from scipy.stats import norm
-from scipy.stats import fisher_exact
 from datetime import timedelta
 from multiprocessing import Pool
 from sklearn.preprocessing import Imputer
