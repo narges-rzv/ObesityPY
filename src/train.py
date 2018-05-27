@@ -1561,7 +1561,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
     y = y.ravel()
     ylabel = ylabel.ravel()
 
-    headers1 = ['Variable','Total N','Pos N','Neg N','Odds Ratio', 'Odds Ratio Low', 'Odds Ratio High','Relative Risk','p-value for OR']
+    headers1 = ['Variable','Total N','Pos N','Neg N','Odds Ratio', 'Odds Ratio Low', 'Odds Ratio High','Relative Risk'] # ,'p-value for OR'
     categories = ['Maternal Ethnicity','Maternal Race','Maternal Marriage Status','Maternal Birthplace', 'Maternal Diagnosis','Infant Diagnosis']
     features1 = {
         'Gender':{
@@ -1622,7 +1622,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
         'Maternal Birthplace':'Maternal-birthplace:CHINA'
     }
 
-    headers2 = ['Variable','Total N','Total Average', 'Total SD','Pos N','Pos Average', 'Pos SD','Neg N','Neg Average', 'Neg SD','p-value']
+    headers2 = ['Variable','Total N','Total Average', 'Total SD','Pos N','Pos Average', 'Pos SD','Neg N','Neg Average', 'Neg SD'] # ,'p-value'
     features2 = ['Vital: Wt for Length ZScore-avg19to24','Vital: BMI-avg19to24','Vital: Wt for Length ZScore-latest','Vital: BMI-latest']
 
     df1 = []
@@ -1663,9 +1663,9 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
                     lcl, ucl = md-2*se, md+2*se
                     z = md/se
 
-                    pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+                    # pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
                     var = kk + ' (Reference Group)' if features1[k][kk][0] in features1ref.values() else kk
-                    row = [var, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR, pvalue]
+                    row = [var, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR] # , pvalue
                     df1.append(row)
                 else:
                     if type(features1[k][kk][0]) != list:
@@ -1731,10 +1731,10 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
             lcl, ucl = md-2*se, md+2*se
             z = md/se
 
-            pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+            # pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
             row = [f, ix_total.sum(), x[ix_total, col_ix].mean(), x[ix_total, col_ix].std(),
                    ix_total_pos.sum(), x[ix_total_pos, col_ix].mean(), x[ix_total_pos, col_ix].std(),
-                   ix_total_neg.sum(), x[ix_total_neg, col_ix].mean(), x[ix_total_neg, col_ix].std(), pvalue]
+                   ix_total_neg.sum(), x[ix_total_neg, col_ix].mean(), x[ix_total_neg, col_ix].std()] # , pvalue
             df2.append(row)
 
     df1 = pd.DataFrame(df1, columns=headers1)
@@ -1744,8 +1744,8 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
 
     if not os.path.isdir(folder):
         os.mkdir(folder)
-    df1.to_csv(folder+'/summary_stats_t1.csv')
-    df2.to_csv(folder+'/summary_stats_t2.csv')
+    df1.to_csv(folder+'/summary_stats_t1.csv', index=False)
+    df2.to_csv(folder+'/summary_stats_t2.csv', index=False)
     # return df1
 
 
