@@ -1540,7 +1540,7 @@ def print_charac_table(x2, y2, y2label, headers, table_features=['Diagnosis:', '
                 RR if bin_indicator else 0,
                 ) + str(pvalue))
 
-def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m%d_%H:%M")):
+def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m%d_%H-%M")):
     """
     Essentially the same as "print_charac_table", but saves tables required for reporting to two csv files called
     'summary_stats_t1.csv' and summary_stats_t2.csv in the designated folder.
@@ -1561,7 +1561,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
     y = y.ravel()
     ylabel = ylabel.ravel()
 
-    headers1 = ['Variable','Total N','Pos N','Neg N','Odds Ratio', 'Odds Ratio Low', 'Odds Ratio High','Relative Risk'] # ,'p-value for OR'
+    headers1 = ['Variable','Total N','Pos N','Neg N','Odds Ratio', 'Odds Ratio Low', 'Odds Ratio High','Relative Risk', 'p-value for OR']
     categories = ['Maternal Ethnicity','Maternal Race','Maternal Marriage Status','Maternal Birthplace', 'Maternal Diagnosis','Infant Diagnosis']
     features1 = {
         'Gender':{
@@ -1622,7 +1622,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
         'Maternal Birthplace':'Maternal-birthplace:CHINA'
     }
 
-    headers2 = ['Variable','Total N','Total Average', 'Total SD','Pos N','Pos Average', 'Pos SD','Neg N','Neg Average', 'Neg SD'] # ,'p-value'
+    headers2 = ['Variable','Total N','Total Average', 'Total SD','Pos N','Pos Average', 'Pos SD','Neg N','Neg Average','Neg SD','p-value'] 
     features2 = ['Vital: Wt for Length ZScore-avg19to24','Vital: BMI-avg19to24','Vital: Wt for Length ZScore-latest','Vital: BMI-latest']
 
     df1 = []
@@ -1632,7 +1632,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
             df1.append(row)
             if k in features1ref:
                 ref_col_ix = headers.index(features1ref[k])
-                # ix_total_neg = (ylabel == 0) & (x[:,ref_col_ix] != 0)
+                ix_neg = (ylabel == 1) & (x[:,ref_col_ix] != 0)
                 Dn = sum((ylabel > 0) & (x[:,ref_col_ix] != 0)) * 1.0
                 Hn = sum((ylabel == 0) & (x[:,ref_col_ix] != 0)) * 1.0
             for kk in features1[k].keys():
@@ -1646,10 +1646,6 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
                     He = sum((ylabel == 0) & (x[:,col_ix] != 0)) * 1.0
                     # Dn = sum((ylabel > 0) & (x[:,col_ix] == 0)) * 1.0
                     # Hn = sum((ylabel == 0) & (x[:,col_ix] == 0)) * 1.0
-                    if col_ix == ref_col_ix:
-                        Dn = sum((ylabel > 0) & (x[:,col_ix] == 0)) * 1.0
-                        Hn = sum((ylabel == 0) & (x[:,col_ix] == 0)) * 1.0
-
                     
                     OR = (De/He)/(Dn/Hn)
                     OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
@@ -1658,14 +1654,17 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
 
                     # md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
                     # se = np.sqrt(np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
-                    md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,ref_col_ix].mean()
-                    se = np.sqrt(np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,ref_col_ix])/len(x[ix_total_neg,:][:,ref_col_ix]))
+                    md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_neg,:][:,col_ix].mean()
+                    se = np.sqrt(np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_neg,:][:,col_ix])/len(x[ix_neg,:][:,col_ix]))
                     lcl, ucl = md-2*se, md+2*se
                     z = md/se
 
-                    # pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
-                    var = kk + ' (Reference Group)' if features1[k][kk][0] in features1ref.values() else kk
-                    row = [var, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR] # , pvalue
+                    pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+                    if col_ix == ref_col_ix:
+                        OR = 'Reference group'
+                        OR_low, OR_high, RR, pvalue = '','','',''
+                    
+                    row = [kk, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR, pvalue]
                     df1.append(row)
                 else:
                     if type(features1[k][kk][0]) != list:
@@ -1698,7 +1697,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
                     OR = (De/He)/(Dn/Hn)
                     OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
                     OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
-                    RR = (De/(De+He))/(Dn/(Dn+Hn))
+                    # RR = (De/(De+He))/(Dn/(Dn+Hn))
 
                     md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
                     se = np.sqrt( np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
@@ -1734,7 +1733,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
             # pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
             row = [f, ix_total.sum(), x[ix_total, col_ix].mean(), x[ix_total, col_ix].std(),
                    ix_total_pos.sum(), x[ix_total_pos, col_ix].mean(), x[ix_total_pos, col_ix].std(),
-                   ix_total_neg.sum(), x[ix_total_neg, col_ix].mean(), x[ix_total_neg, col_ix].std()] # , pvalue
+                   ix_total_neg.sum(), x[ix_total_neg, col_ix].mean(), x[ix_total_neg, col_ix].std(), pvalue]
             df2.append(row)
 
     df1 = pd.DataFrame(df1, columns=headers1)
