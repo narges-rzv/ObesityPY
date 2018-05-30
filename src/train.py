@@ -1540,7 +1540,7 @@ def print_charac_table(x2, y2, y2label, headers, table_features=['Diagnosis:', '
                 RR if bin_indicator else 0,
                 ) + str(pvalue))
 
-def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m%d_%H:%M")):
+def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m%d_%H-%M")):
     """
     Essentially the same as "print_charac_table", but saves tables required for reporting to two csv files called
     'summary_stats_t1.csv' and summary_stats_t2.csv in the designated folder.
@@ -1561,7 +1561,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
     y = y.ravel()
     ylabel = ylabel.ravel()
 
-    headers1 = ['Variable','Total N','Pos N','Neg N','Odds Ratio', 'Odds Ratio Low', 'Odds Ratio High','Relative Risk','p-value for OR']
+    headers1 = ['Variable','Total N','Pos N','Neg N','Odds Ratio', 'Odds Ratio Low', 'Odds Ratio High','Relative Risk', 'p-value for OR']
     categories = ['Maternal Ethnicity','Maternal Race','Maternal Marriage Status','Maternal Birthplace', 'Maternal Diagnosis','Infant Diagnosis']
     features1 = {
         'Gender':{
@@ -1579,46 +1579,50 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
             'Multiracial':['Maternal-race:MULTIRACIAL'],
             'Caucasian/White':['Maternal-race:CAUCASIAN/WHITE'],
             'African Amer/Black':['Maternal-race:AFRICAN AMER/BLAC']
-         },
-         'Maternal Marriage Status':{
+        },
+        'Maternal Marriage Status':{
             'Divorced':['Maternal-marriageStatus:DIVORCED'],
             'Partnered':['Maternal-marriageStatus:PARTNERED'],
             'Married':['Maternal-marriageStatus:MARRIED'],
             'Single':['Maternal-marriageStatus:SINGLE']
-         },
-         'Maternal Birthplace':{
+        },
+        'Maternal Birthplace':{
             'China':['Maternal-birthplace:CHINA'],
             'Dominican Republic':['Maternal-birthplace:DOMINICAN REPUBLIC'],
-            'Puerto Rico':['Maternal-birthplace:PUERTO RICO'],
-            'Trinidad':['Maternal-birthplace:TRINIDAD'],
             'Elsalvador':['Maternal-birthplace:ELSALVADOR'],
             'Ecuador':['Maternal-birthplace:ECUADOR'],
             'United States':['Maternal-birthplace:UNITED STATES'],
             'Guatemala':['Maternal-birthplace:GUATEMALA'],
-            'Honduras':['Maternal-birthplace:HONDURAS'],
-            'Grenada':['Maternal-birthplace:GRENADA'],
-            'Peru':['Maternal-birthplace:PERU'],
-            'Haiti':['Maternal-birthplace:HAITI'],
             'Mexico':['Maternal-birthplace:MEXICO']
-         },
-         'Maternal Diagnosis':{
-             'Diabetes Mellitus in pregnancy':['Maternal Diagnosis:9ccs186:DM in preg','Maternal Diagnosis:10ccs186:DM in preg'],
-             'Diabetes Mellitus without complications':[['Maternal Diagnosis:9ccs186:DM in preg','Maternal Diagnosis:10ccs186:DM in preg'],
+        },
+        'Maternal Diagnosis':{
+            'Diabetes Mellitus in pregnancy':['Maternal Diagnosis:9ccs186:DM in preg','Maternal Diagnosis:10ccs186:DM in preg'],
+            'Diabetes Mellitus without complications':[['Maternal Diagnosis:9ccs186:DM in preg','Maternal Diagnosis:10ccs186:DM in preg'],
                 ['Maternal Diagnosis:9ccs195:Ot compl bir','Maternal Diagnosis:10ccs195:Ot compl bir']],
-             'Hypertension in pregnancy':['Maternal Diagnosis:9ccs183:HTN in preg','Maternal Diagnosis:10ccs183:HTN in preg'],
-             'Complications at birth':['Maternal Diagnosis:9ccs195:Ot compl bir','Maternal Diagnosis:10ccs195:Ot compl bir'],
-             'OB-related perin trauma':['Maternal Diagnosis:9ccs193:OB-related perin trauma','Maternal Diagnosis:10ccs193:OB-related perin trauma'],
-             'Pelvic obstruction':['Maternal Diagnosis:9ccs188:Pelvic obstr','Maternal Diagnosis:10ccs188:Pelvic obstr']
+            'Hypertension in pregnancy':['Maternal Diagnosis:9ccs183:HTN in preg','Maternal Diagnosis:10ccs183:HTN in preg'],
+            'Complications at birth':['Maternal Diagnosis:9ccs195:Ot compl bir','Maternal Diagnosis:10ccs195:Ot compl bir'],
+            'OB-related perin trauma':['Maternal Diagnosis:9ccs193:OB-related perin trauma','Maternal Diagnosis:10ccs193:OB-related perin trauma'],
+            'Pelvic obstruction':['Maternal Diagnosis:9ccs188:Pelvic obstr','Maternal Diagnosis:10ccs188:Pelvic obstr']
          },
-         'Infant Diagnosis':{'Nutritional diagnosis':['Diagnosis:9ccs52:Nutrit defic','Diagnosis:10ccs52:Nutrit defic'],
-             'Epilepsy/convulsions':['Diagnosis:9ccs83:Epilepsy/cnv','Diagnosis:10ccs83:Epilepsy/cnv'],
-             'Liver Diseases':['Diagnosis:9ccs151:Oth liver dx','Diagnosis:10ccs151:Oth liver dx'],
-             'Skin Diseases':['Diagnosis:9ccs198:Ot infl skin','Diagnosis:10ccs198:Ot infl skin'],
-             'Kidney Diseases':['Diagnosis:9ccs161:Ot dx kidney','Diagnosis:10ccs161:Ot dx kidney'],
-             'Circulatory Diseases':['Diagnosis:9ccs117:Ot circul dx','Diagnosis:10ccs117:Ot circul dx']
-                             }
+         'Infant Diagnosis':{
+            'Nutritional diagnosis':['Diagnosis:9ccs52:Nutrit defic','Diagnosis:10ccs52:Nutrit defic'],
+            'Epilepsy/convulsions':['Diagnosis:9ccs83:Epilepsy/cnv','Diagnosis:10ccs83:Epilepsy/cnv'],
+            'Liver Diseases':['Diagnosis:9ccs151:Oth liver dx','Diagnosis:10ccs151:Oth liver dx'],
+            'Skin Diseases':['Diagnosis:9ccs198:Ot infl skin','Diagnosis:10ccs198:Ot infl skin'],
+            'Kidney Diseases':['Diagnosis:9ccs161:Ot dx kidney','Diagnosis:10ccs161:Ot dx kidney'],
+            'Circulatory Diseases':['Diagnosis:9ccs117:Ot circul dx','Diagnosis:10ccs117:Ot circul dx']
+        }
     }
-    headers2 = ['Variable','Total N','Total Average', 'Total SD','Pos N','Pos Average', 'Pos SD','Neg N','Neg Average', 'Neg SD','p-value']
+
+    features1ref = {
+        'Gender':'Gender:1 female',
+        'Maternal Ethnicity':'Maternal-ethnicity:NOT HISPANIC/LATINO',
+        'Maternal Race':'Maternal-race:ASIAN',
+        'Maternal Marriage Status':'Maternal-marriageStatus:MARRIED',
+        'Maternal Birthplace':'Maternal-birthplace:CHINA'
+    }
+
+    headers2 = ['Variable','Total N','Total Average', 'Total SD','Pos N','Pos Average', 'Pos SD','Neg N','Neg Average','Neg SD','p-value'] 
     features2 = ['Vital: Wt for Length ZScore-avg19to24','Vital: BMI-avg19to24','Vital: Wt for Length ZScore-latest','Vital: BMI-latest']
 
     df1 = []
@@ -1626,6 +1630,11 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
         for k in features1.keys():
             row = [k] + ['']*(len(headers1)-1)
             df1.append(row)
+            if k in features1ref:
+                ref_col_ix = headers.index(features1ref[k])
+                ix_neg = (ylabel == 1) & (x[:,ref_col_ix] != 0)
+                Dn = sum((ylabel > 0) & (x[:,ref_col_ix] != 0)) * 1.0
+                Hn = sum((ylabel == 0) & (x[:,ref_col_ix] != 0)) * 1.0
             for kk in features1[k].keys():
                 if len(features1[k][kk]) == 1:
                     col_ix = headers.index(features1[k][kk][0])
@@ -1635,19 +1644,26 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
                     ix_total_neg = (ylabel == 0) & (x[:,col_ix] != 0)
                     De = sum((ylabel > 0) & (x[:,col_ix] != 0)) * 1.0
                     He = sum((ylabel == 0) & (x[:,col_ix] != 0)) * 1.0
-                    Dn = sum((ylabel > 0) & (x[:,col_ix] == 0)) * 1.0
-                    Hn = sum((ylabel == 0) & (x[:,col_ix] == 0)) * 1.0
+                    # Dn = sum((ylabel > 0) & (x[:,col_ix] == 0)) * 1.0
+                    # Hn = sum((ylabel == 0) & (x[:,col_ix] == 0)) * 1.0
+                    
                     OR = (De/He)/(Dn/Hn)
                     OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
                     OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
                     RR = (De/(De+He))/(Dn/(Dn+Hn))
 
-                    md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
-                    se = np.sqrt(np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
+                    # md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
+                    # se = np.sqrt(np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
+                    md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_neg,:][:,col_ix].mean()
+                    se = np.sqrt(np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_neg,:][:,col_ix])/len(x[ix_neg,:][:,col_ix]))
                     lcl, ucl = md-2*se, md+2*se
                     z = md/se
 
                     pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+                    if col_ix == ref_col_ix:
+                        OR = 'Reference group'
+                        OR_low, OR_high, RR, pvalue = '','','',''
+                    
                     row = [kk, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR, pvalue]
                     df1.append(row)
                 else:
@@ -1681,13 +1697,13 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
                     OR = (De/He)/(Dn/Hn)
                     OR_sterror = np.sqrt(1/De + 1/He + 1/Dn + 1/Hn)
                     OR_low, OR_high = np.exp(np.log(OR) - 1.96*OR_sterror), np.exp(np.log(OR) + 1.96*OR_sterror)
-                    RR = (De/(De+He))/(Dn/(Dn+Hn))
+                    # RR = (De/(De+He))/(Dn/(Dn+Hn))
 
                     md = x[ix_total_pos,:][:,col_ix].mean() - x[ix_total_neg,:][:,col_ix].mean()
                     se = np.sqrt( np.var(x[ix_total_pos,:][:,col_ix]) / len(x[ix_total_pos,:][:,col_ix]) + np.var(x[ix_total_neg,:][:,col_ix])/len(x[ix_total_neg,:][:,col_ix]))
                     lcl, ucl = md-2*se, md+2*se
                     z = md/se
-
+                    
                     pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
                     row = [kk, ix_total.sum(), ix_total_pos.sum(), ix_total_neg.sum(), OR, OR_low, OR_high, RR, pvalue]
                     df1.append(row)
@@ -1714,7 +1730,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
             lcl, ucl = md-2*se, md+2*se
             z = md/se
 
-            pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
+            # pvalue = 2 * norm.cdf(-1*(np.abs(np.log(OR))/OR_sterror)) if bin_indicator else 2 * norm.cdf(-np.abs(z))
             row = [f, ix_total.sum(), x[ix_total, col_ix].mean(), x[ix_total, col_ix].std(),
                    ix_total_pos.sum(), x[ix_total_pos, col_ix].mean(), x[ix_total_pos, col_ix].std(),
                    ix_total_neg.sum(), x[ix_total_neg, col_ix].mean(), x[ix_total_neg, col_ix].std(), pvalue]
@@ -1727,8 +1743,9 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
 
     if not os.path.isdir(folder):
         os.mkdir(folder)
-    df1.to_csv(folder+'/summary_stats_t1.csv')
-    df2.to_csv(folder+'/summary_stats_t2.csv')
+    df1.to_csv(folder+'/summary_stats_t1.csv', index=False)
+    df2.to_csv(folder+'/summary_stats_t2.csv', index=False)
+    # return df1
 
 
 if __name__=='__main__':
