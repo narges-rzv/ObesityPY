@@ -8,4 +8,4 @@ python objects/
 .ipynb_checkpoints
 
 # Python things
-*__pycache__
+src/__pycache__/*
