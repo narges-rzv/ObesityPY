@@ -1,2 +1,5 @@
 #Ignore Python data objects
 python objects/
+
+# Ignore personal to do list
+% TO DO.ipynb
