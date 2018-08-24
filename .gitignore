@@ -1,5 +1,11 @@
-#Ignore Python data objects
+# Ignore Python data objects
 python objects/
 
 # Ignore personal to do list
 % TO DO.ipynb
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Python things
+*__pycache__
