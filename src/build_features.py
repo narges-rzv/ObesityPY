@@ -999,12 +999,13 @@ def build_feature_race_index():
     feature_headers = []
     for (ix, codeline) in enumerate(codesNnames):
         codes = codeline.strip().split('#')[0]
-        descr = codeline.strip().split('#')[1]
-        if code in feature_index:
-            feature_index[code.strip()].append(ix)
-        else:
-            feature_index[code.strip()] = [ix]
-    feature_headers = [''.join(('Race:',descr))]
+        descr = codeline.strip().split('#')[1].strip()
+        for code in codes.split(' | '):
+            if code in feature_index:
+                feature_index[code.strip()].append(ix)
+            else:
+                feature_index[code.strip()] = [ix]
+        feature_headers.append(''.join(('Race:',descr)))
     return feature_index, feature_headers
 
 def build_feature_lab_index():
