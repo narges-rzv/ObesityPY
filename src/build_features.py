@@ -250,6 +250,7 @@ def build_features_race(patient_data, maternal_data, maternal_hist_data, lat_lon
     if code in feature_index and pd.notnull(code):
         res[feature_index[code]] = True
     return res
+
 # def build_features_zipcd(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
 #     res = np.zeros(len(feature_headers), dtype=bool)
 #     if 'zip' in patient_data:
@@ -786,6 +787,7 @@ def build_feature_matrace_index():
             feature_index[code] = [ix]
     feature_headers = ['Maternal-race:'+ i for i in codesNnames]
     return feature_index, feature_headers
+
 def build_feature_matnatn_index():
     try:
         codesNnames = [l.strip().decode('utf-8') for l in open(config_file.BM_NationalityList, 'rb').readlines()]
@@ -985,7 +987,7 @@ def build_feature_census_index(env_dic):
                 if k not in feature_index:
                     feature_index[k] = counter
                     counter += 1
-    feature_headers = ['Census:'+ i for i in feature_index]
+    feature_headers = [''.join(('Census:', i)) for i in feature_index]
     return feature_index, feature_headers
 
 def build_feature_race_index():
@@ -996,13 +998,13 @@ def build_feature_race_index():
     feature_index = {}
     feature_headers = []
     for (ix, codeline) in enumerate(codesNnames):
-        code = codeline.strip()
+        codes = codeline.strip().split('#')[0]
+        descr = codeline.strip().split('#')[1]
         if code in feature_index:
-            feature_index[code].append(ix)
-            # print('double!!', icd_code)
+            feature_index[code.strip()].append(ix)
         else:
-            feature_index[code] = [ix]
-    feature_headers = ['Race:'+ i for i in codesNnames]
+            feature_index[code.strip()] = [ix]
+    feature_headers = [''.join(('Race:',descr))]
     return feature_index, feature_headers
 
 def build_feature_lab_index():
