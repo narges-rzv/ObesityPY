@@ -3,18 +3,29 @@ import time
 import pickle
 import zscore
 import warnings
+import functools
 import numpy as np
 import pandas as pd
 import config as config_file
 import matplotlib.pylab as plt
 import outcome_def_pediatric_obesity
+
 from scipy import stats
-from dateutil import parser
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 from tqdm import tqdm
 
+def if_data_nonexistent(func):
+    @functools.wraps(func)
+    def wrapper_decorator(*args, **kwargs):
+        try:
+            res = func(*args, **kwargs)
+        except:
+            res = np.zeros((len(args[-1])))
+        return res
+    return wrapper_decorator
 
+@if_data_nonexistent
 def build_features_icd(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=int)
     for diag in patient_data['diags']:
@@ -33,6 +44,7 @@ def build_features_icd(patient_data, maternal_data, maternal_hist_data, lat_lon_
             break
     return res
 
+@if_data_nonexistent
 def build_features_lab(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=float)
     for key1 in patient_data['labs']:
@@ -47,6 +59,7 @@ def build_features_lab(patient_data, maternal_data, maternal_hist_data, lat_lon_
             break
     return res
 
+@if_data_nonexistent
 def build_features_med(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     for key1 in patient_data['meds']:
@@ -67,6 +80,7 @@ def build_features_gen(patient_data, maternal_data, maternal_hist_data, lat_lon_
     res[feature_index[int(code)]] = True
     return res
 
+@if_data_nonexistent
 def build_features_vitalLatest(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=float)
     bdate = patient_data['bdate']
@@ -134,6 +148,7 @@ def build_features_vitalAverage_18_21(patient_data, maternal_data, maternal_hist
 def build_features_vitalAverage_18_24(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     return build_features_vitalAverage(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 18, 24)
 
+@if_data_nonexistent
 def build_features_vitalAverage(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, frommonth, tomonth):
     res = np.zeros(len(feature_headers), dtype=float)
     res_cnt = np.zeros(len(feature_headers), dtype=float)
@@ -184,6 +199,7 @@ def build_features_vitalGain_16_24(patient_data, maternal_data, maternal_hist_da
 def build_features_vitalGain_0_24(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     return build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, 0, 0, 19, 24)
 
+@if_data_nonexistent
 def build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, startmonth1, endmonth1, startmonth2, endmonth2):
     """
     Computes the gain between two time periods
@@ -218,6 +234,7 @@ def build_features_vitalGain(patient_data, maternal_data, maternal_hist_data, la
     res = res2-res1
     return res
 
+@if_data_nonexistent
 def build_features_ethn(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     code = patient_data['ethnicity']
@@ -225,6 +242,7 @@ def build_features_ethn(patient_data, maternal_data, maternal_hist_data, lat_lon
         res[feature_index[code]] = True
     return res
 
+@if_data_nonexistent
 def build_features_mat_insurance1(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'insur1' not in maternal_data:
@@ -234,6 +252,8 @@ def build_features_mat_insurance1(patient_data, maternal_data, maternal_hist_dat
     if code in feature_index and pd.notnull(code):
         res[feature_index[code]] = True
     return res
+
+@if_data_nonexistent
 def build_features_mat_insurance2(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'insur2' not in maternal_data:
@@ -244,6 +264,7 @@ def build_features_mat_insurance2(patient_data, maternal_data, maternal_hist_dat
         res[feature_index[code]] = True
     return res
 
+@if_data_nonexistent
 def build_features_race(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     code = patient_data['race']
@@ -259,6 +280,7 @@ def build_features_race(patient_data, maternal_data, maternal_hist_data, lat_lon
 #             res[feature_index[code]] = True
 #     return res
 
+@if_data_nonexistent
 def build_features_zipcd_birth(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     """
     Creates a zip code feature associated with the address closest to the child's birth within 1 year.
@@ -278,6 +300,7 @@ def build_features_zipcd_birth(patient_data, maternal_data, maternal_hist_data, 
                 res[feature_index[code]] = True
             return res
 
+@if_data_nonexistent
 def build_features_zipcd_latest(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     """
     Creates a zip code feature associated with the latest address before reference_date_end.
@@ -311,6 +334,7 @@ def build_features_zipcd_latest(patient_data, maternal_data, maternal_hist_data,
 #             continue
 #     return res
 
+@if_data_nonexistent
 def build_features_census_birth(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     """
     Creates census level features that are associated with the address closest to the child's birth within 1 year.
@@ -339,6 +363,7 @@ def build_features_census_birth(patient_data, maternal_data, maternal_hist_data,
         pass
     return res
 
+@if_data_nonexistent
 def build_features_census_latest(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     """
     Creates census level features that are associated with the latest address before reference_date_end.
@@ -367,6 +392,7 @@ def build_features_census_latest(patient_data, maternal_data, maternal_hist_data
         pass
     return res
 
+@if_data_nonexistent
 def build_features_numVisits(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=int)
     dates = []
@@ -381,6 +407,7 @@ def build_features_numVisits(patient_data, maternal_data, maternal_hist_data, la
     res[0] = len(set(dates))
     return res
 
+@if_data_nonexistent
 def build_features_mat_icd(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=int)
     if 'diags' not in maternal_data:
@@ -395,6 +422,8 @@ def build_features_mat_icd(patient_data, maternal_data, maternal_hist_data, lat_
             except KeyError:
                 pass #print('--->',diag.replace('.','').strip()[0:-1])
     return res
+
+@if_data_nonexistent
 def build_features_nb_icd(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=int)
     if 'nbdiags' not in maternal_data:
@@ -408,6 +437,8 @@ def build_features_nb_icd(patient_data, maternal_data, maternal_hist_data, lat_l
             except KeyError:
                 pass #print('--->',diag.replace('.','').strip()[0:-1])
     return res
+
+@if_data_nonexistent
 def build_features_mat_race(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'race' not in maternal_data:
@@ -417,6 +448,7 @@ def build_features_mat_race(patient_data, maternal_data, maternal_hist_data, lat
         res[feature_index[code]] = True
     return res
 
+@if_data_nonexistent
 def build_features_mat_ethn(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'ethnicity' not in maternal_data:
@@ -426,6 +458,7 @@ def build_features_mat_ethn(patient_data, maternal_data, maternal_hist_data, lat
         res[feature_index[code]] = True
     return res
 
+@if_data_nonexistent
 def build_features_mat_lang(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'lang' not in maternal_data:
@@ -435,6 +468,7 @@ def build_features_mat_lang(patient_data, maternal_data, maternal_hist_data, lat
         res[feature_index[code]] = True
     return res
 
+@if_data_nonexistent
 def build_features_mat_natn(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'nationality' not in maternal_data:
@@ -444,6 +478,7 @@ def build_features_mat_natn(patient_data, maternal_data, maternal_hist_data, lat
         res[feature_index[code]] = True
     return res
 
+@if_data_nonexistent
 def build_features_mat_marriage(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'marriage' not in maternal_data:
@@ -452,6 +487,8 @@ def build_features_mat_marriage(patient_data, maternal_data, maternal_hist_data,
     if code in feature_index and pd.notnull(code):
         res[feature_index[code]] = True
     return res
+
+@if_data_nonexistent
 def build_features_mat_birthpl(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=bool)
     if 'birthplace' not in maternal_data:
@@ -460,6 +497,8 @@ def build_features_mat_birthpl(patient_data, maternal_data, maternal_hist_data, 
     if code in feature_index and pd.notnull(code):
         res[feature_index[code]] = True
     return res
+
+@if_data_nonexistent
 def build_features_mat_agedel(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=int)
     if 'agedeliv' not in maternal_data:
@@ -471,6 +510,8 @@ def build_features_mat_agedel(patient_data, maternal_data, maternal_hist_data, l
 
 ##### FUNCTIONS TO BUILD FEATURES FOR HISTORICAL MATERNAL DATA ####
 def mother_child_map(patient_data, maternal_data, maternal_hist_data):
+    if maternal_data == {}:
+        return {}
     child_mrn = set(np.array([patient_data[k]['mrn'] for k in patient_data.keys()])) & set(np.nan_to_num(np.array([*maternal_data])).astype(int).astype(str))
     mom_mrn = set(maternal_hist_data.keys()) & set([maternal_data[k]['mom_mrn'] for k in maternal_data.keys()])
     keys = [k for k in patient_data.keys() if str(patient_data[k]['mrn']) in child_mrn]
@@ -482,6 +523,7 @@ def mother_child_map(patient_data, maternal_data, maternal_hist_data):
             mother_child_dic[maternal_data[patient_data[k]['mrn']]['mom_mrn']] = {patient_data[k]['mrn']: patient_data[k]['bdate']}
     return mother_child_dic
 
+@if_data_nonexistent
 def build_features_mat_hist_value(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers, mother_child_data, output_type, measurement, period):
     """
     Function to process maternal doctor visits.
