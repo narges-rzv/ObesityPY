@@ -678,20 +678,8 @@ def lasso_filter(x, y, ylabel, feature_headers, print_out=True):
 
     node_count = multiprocessing.cpu_count()
     node_count = math.ceil(node_count*0.8)
-    if len(arguments) > node_count:
-        num_batches = math.ceil(float(len(arguments))/node_count)
-        outputs = []
-        for i in range(num_batches):
-            sub_args = arguments[i*node_count:(i+1)*node_count] if i < num_batches-1 else arguments[i*node_count:]
-            nodes = node_count if i < num_batches-1 else len(arguments) - (i * node_count)
-            print('Running batch {0:d} of {1:d}'.format(i+1, num_batches))
-            with Pool(node_count) as p:
-                output = p.map(run_lasso_single, sub_args)
-            for out in output:
-                outputs.append(out)
-    else:
-        with Pool(node_count) as p:
-            outputs = p.map(run_lasso_single, arguments)
+    with Pool(node_count) as p:
+        outputs = p.map(run_lasso_single, arguments)
 
     return np.array(outputs)
 
@@ -1134,29 +1122,14 @@ def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_he
             arguments.append([iteration, datax, xtest, datay, ytest, dataylabel, ytestlabel, percentile, modelType])
             randix_track[:,iteration] = randix
         single = train_regression_single if regression else train_classification_single
-        if iters > node_count:
-            num_batches = math.ceil(float(iters/node_count))
-            for i in range(num_batches):
-                sub_args = arguments[i*node_count:(i+1)*node_count] if i < num_batches-1 else arguments[i*node_count:]
-                nodes = node_count if i < num_batches-1 else len(arguments) - (i * node_count)
-                print('Running batch {0:d} of {1:d} with {2:d} nodes'.format(i+1, num_batches, nodes))
-                with Pool(node_count) as p:
-                    outputs = p.map(single, sub_args)
-                for model, auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test, ix_train, ix_val, results, iteration in outputs:
-                    ix_train_track[:,iteration] = ix_train
-                    ix_val_track[:,iteration] = ix_val
-                    results_cv[iteration,:] = [auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test]
-                    model_weights_array[iteration,:] = model.coef_ if modelType in ('lasso','lars') else model.feature_importances_
-                    model_list[iteration] = model
-        else:
-            with Pool(min(iters,node_count)) as p:
-                outputs = p.map(single, arguments)
-            for model, auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test, ix_train, ix_val, results, iteration in outputs:
-                ix_train_track[:,iteration] = ix_train
-                ix_val_track[:,iteration] = ix_val
-                results_cv[iteration,:] = [auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test]
-                model_weights_array[iteration,:] = model.coef_ if modelType in ('lasso','lars') else model.feature_importances_
-                model_list[iteration] = model
+        with Pool(node_count) as p:
+            outputs = p.map(single, arguments)
+        for model, auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test, ix_train, ix_val, results, iteration in outputs:
+            ix_train_track[:,iteration] = ix_train
+            ix_val_track[:,iteration] = ix_val
+            results_cv[iteration,:] = [auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test]
+            model_weights_array[iteration,:] = model.coef_ if modelType in ('lasso','lars') else model.feature_importances_
+            model_list[iteration] = model
 
         best = np.where(np.argsort(results_cv[:,1])==0)[0][0] # using best test AUC for producing model outputs
         xtrain = x2[randix_track[:,best],:][ix_train_track[:,best],:]
