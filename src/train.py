@@ -1,20 +1,19 @@
 import os
 import re
 import sys
+
 import math
 import time
 import pickle
 import random
 import zscore
 import matplotlib
+import multiprocessing
 matplotlib.use('TkAgg')
-import build_features
 import numpy as np
 import pandas as pd
-import multiprocessing
-import config as config_file
 import matplotlib.pylab as plt
-import outcome_def_pediatric_obesity
+
 from dateutil import parser
 from sklearn import metrics
 from scipy.stats import norm
@@ -23,7 +22,14 @@ from multiprocessing import Pool
 from sklearn.preprocessing import Imputer
 from dateutil.relativedelta import relativedelta
 
+import build_features
+import config as config_file
+import outcome_def_pediatric_obesity
+
 random.seed(2)
+
+global g_wfl
+global b_wfl
 
 g_wfl = np.loadtxt(config_file.wght4leng_girl)
 b_wfl = np.loadtxt(config_file.wght4leng_boy)
