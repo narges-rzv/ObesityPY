@@ -242,15 +242,16 @@ def get_measurement_single(data, mrn, col_ix, data_type):
     """
     val = get_unique_vals(data, col_ix)
     val = determine_multiple(val, mrn, data_type)
-    if data_type.lower() != 'gender':
-        return val.upper()
-    elif data_type.lower() in ('bdate', 'birthday', 'birthdate'):
-        return date_parse(val)
-    else:
+    if data_type.lower() == 'gender':
         if val.lower() == 'male':
             return False
         else:
             return True
+    elif data_type.lower() in ('bdate', 'birthday', 'birthdate'):
+        return date_parse(val)
+    else:
+    	return val.upper()
+        
 
 def get_measurement_multiple(data, mrn, ix_cols):
     """
