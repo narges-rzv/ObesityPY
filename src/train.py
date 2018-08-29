@@ -34,11 +34,54 @@ global b_wfl
 g_wfl = np.loadtxt(config_file.wght4leng_girl)
 b_wfl = np.loadtxt(config_file.wght4leng_boy)
 
-def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentile=False, mrns=[], filterSTRThresh=[], print_out=True):
+def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=['Maternal'], percentile=False, mrns=[], filterSTRThresh=[], print_out=True):
+    """
+    Filter the data set to the selected cohort via specified features.
+
+    Parameters
+    ----------
+    x : array
+        Data array.
+    y : array
+        Target data array.
+    ylabel : array
+        Target label; binary for predicted outcome.
+    headers : array-like
+        Feature names corresponding to x.
+    filterSTR : list
+        Default: []. List of feature names (or beginning of feature names) to filter the data with.
+        Corresponds to filterSTRThresh.
+    percentile : boolean
+        Default: False.
+    mrns : list
+        Default: []. List of mrns represented in the data.
+    filterSTRThresh : list
+        Default: []. List of thresholds to filter cohort to match with feature names in filterSTR.
+    print_out : boolean
+        Default: True. Indicator for whether to print out logging information or to return it at the end.
+        Mainly used for batch many combinations of data in parallel to keep the logging information together
+        for each data creation cycle.
+
+    Returns
+    -------
+    ix : array
+        Boolean array indicating which rows will be kept in the filtered cohort.
+    x : array
+        Data array of only the valid cohort.
+    y : array
+        Target array of only the valid cohort.
+    ylabel : array
+        Target labels array of only the valid cohort.
+    mrns : array
+        Array of mrns for valid cohort (if non-empty array is passed).
+    """
     if filterSTR.__class__ == list:
         pass
     else:
         filterSTR = [filterSTR]
+
+    if headers.__class__ != np.ndarray:
+        headers = np.array(headers)
 
     if len(filterSTRThresh) != len(filterSTR):
         filterSTRThresh = []
@@ -46,13 +89,12 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
     if len(filterSTRThresh) == 0 :
         filterSTRThresh = [0.5]*len(filterSTR) #make it binary, as before.
 
+    print_statements = []
+    string = 'Original cohort size is: {0:,d}, number of features: {1:,d}'.format(x.shape[0], len(headers))
     if print_out:
-        print('Original cohort size is:', x.shape[0], 'num features:',len(headers))
+        print(string)
     else:
-        print_statements = 'Original cohort size: {0:,d}, number of features: {1:,d}\n'.format(x.shape[0], len(headers))
-
-    index_finder_anyvital = np.array([h.startswith('Vital') for h in headers])
-    index_finder_maternal = np.array([h.startswith('Maternal') for h in headers])
+        print_statements.append(string)
 
     index_finder_filterstr = np.zeros(len(headers))
 
@@ -60,54 +102,39 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
         # print(index_finder_filterstr + np.array([h.startswith(fstr) for h in headers]))
         index_finder_filterstr_tmp = np.array([h.startswith(fstr) for h in headers])
         if index_finder_filterstr_tmp.sum() > 1:
+            string = 'alert: filter returned more than one feature: {0:s}'.format(fstr)
+            index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
+            string += '\nusing all instances of features starting with: {0:s}, set filter to one of the following if incorrect: {0:s}'.format(fstr, str(headers[index_finder_filterstr_tmp]))
             if print_out:
-                print('alert: filter returned more than one feature:', fstr)
-                index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
-                print('set filter to h==', fstr)
+                print(string)
             else:
-                print_statements += 'alert: filter returned more than one feature: ' + str(fstr) + '\n'
-                index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
-                print_statements += 'set filter to h==' + str(fstr) + '\n'
-        index_finder_filterstr = index_finder_filterstr + index_finder_filterstr_tmp
+                print_statements.append(string)
+                
+        index_finder_filterstr += index_finder_filterstr_tmp
+        string = 'total number of people who have: {0:s} is: {1:,.0f}'.format(str(headers[index_finder_filterstr_tmp]), (x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i]).sum())
         if print_out:
-            print('total number of people who have: ', np.array(headers)[index_finder_filterstr_tmp], ' is:', ( x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i] ).sum() )
+            print(string)
         else:
-            print_statements += 'total number of people who have: '+str(np.array(headers)[index_finder_filterstr_tmp])+' is: {0:,d}\n'.format((x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i]).sum())
+            print_statements.append(string)
 
     index_finder_filterstr = (index_finder_filterstr > 0)
 
-    # if index_finder_filterstr.sum() > 1 and filterSTR.__class__ != list:
-    #     print('instead of *startswith*',filterSTR,'...trying *equals to*', filterSTR)
-    #     index_finder_filterstr = np.array([h == filterSTR for h in headers])
-
-    # import pdb
-    # pdb.set_trace()
     if (len(filterSTR) != 0) and (percentile == False):
-        ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()) & ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+        ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel())
     else:
-        ix = (y > 10) & (y < 40) & ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+        ix = (y > 10) & (y < 40)
+
+    string = 'total number of people who have a valid BMI measured (10 > BMI < 40): {0:,.0f}'.format(((y > 10) & (y < 40)).sum())
+    string += '\ntotal number of people who have all filtered variables: {0:,.0f}'.format((((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
+    string += '\ntotal number of people who have maternal data available: {0:,.0f}'.format(((x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum())
+    string += '\nintersection of the three is: {0:,.0f}'.format((ix & (x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum())
+    string += '\n{0:,.0f} patients selected (regardless of maternal data availability unless entered manually)...'.format(ix.sum())
     if print_out:
-        print('total number of people who have a BMI measured:', sum((y > 10) & (y < 40)))
-        print('total number of people who have all filtered variables:', (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
-        print('total number of people who have maternal data available:', ((x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum() )
-        print('intersection of the three above is:', sum(ix))
-        print(str(ix.sum()) + ' patients selected..')
+        print(string)
         return ix, x[ix,:], y[ix], ylabel[ix], mrns[ix]
-
-    # elif percentile == False:
-    #     ix = (y > 10) & (y < 40) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1)
-    #     print(ix.sum())
-
-    # if (percentile == True) & (len(filterSTR) != 0):
-    #     ix = (x[:,index_finder_filterstr].ravel() == True)
-    # elif percentile == True:
-    #     ix = (x[:,index_finder_filterstr].ravel() >= False)
     else:
-        print_statements += 'total number of people who have a BMI measured: {0:,d}\n'.format(sum((y > 10) & (y < 40)))
-        print_statements += 'total number of people who have all filtered variables: {0:,d}\n'.format((((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
-        print_statements += 'total number of people who have maternal data available: {0:,d}\n'.format(((x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum())
-        print_statements += 'intersection of the three above is: {0:,d}\n'.format(sum(ix))
-        print_statements += '{0:,d} patients selected..\n\n'.format(ix.sum())
+        print_statements.append(string)
+        print_statements = '\n'.join(print_statements)
         return ix, x[ix,:], y[ix], ylabel[ix], mrns[ix], print_statements
 
 def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns):
