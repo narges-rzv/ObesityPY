@@ -292,18 +292,17 @@ def build_features_zipcd_birth(patient_data, maternal_data, maternal_hist_data, 
     """
     res = np.zeros(len(feature_headers), dtype=bool)
     bdate = patient_data['bdate']
-    if 'zip' in patient_data:
-        ix = np.argsort([abs(bdate-z[0]) for z in patient_data['zip'] if abs(bdate-z[0]).days <= 365.])
-        if ix.ravel().shape[0] == 0:
-            return res
-        else:
-            code = str(patient_data['zip'][ix[0]][1])
-            try:
-                res[feature_index[code]] = True
-            except:
-                code = re.split('[. -]', code)[0]
-                res[feature_index[code]] = True
-            return res
+    ix = np.argsort([abs(bdate-z[0]) for z in patient_data['zip'] if abs(bdate-z[0]).days <= 365.])
+    if ix.ravel().shape[0] == 0:
+        return res
+    else:
+        code = str(patient_data['zip'][ix[0]][1])
+        try:
+            res[feature_index[code]] = True
+        except:
+            code = re.split('[. -]', code)[0]
+            res[feature_index[code]] = True
+        return res
 
 @if_data_nonexistent
 def build_features_zipcd_latest(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
@@ -311,18 +310,17 @@ def build_features_zipcd_latest(patient_data, maternal_data, maternal_hist_data,
     Creates a zip code feature associated with the latest address before reference_date_end.
     """
     res = np.zeros(len(feature_headers), dtype=bool)
-    if 'zip' in patient_data:
-        ix = np.argsort([reference_date_end-z[0] for z in patient_data['zip'] if (reference_date_end-z[0]).days >= 0])
-        if ix.ravel().shape[0] == 0:
-            return res
-        else:
-            code = str(patient_data['zip'][ix[0]][1])
-            try:
-                res[feature_index[code]] = True
-            except:
-                code = re.split('[. -]', code)[0]
-                res[feature_index[code]] = True
-            return res
+    ix = np.argsort([reference_date_end-z[0] for z in patient_data['zip'] if (reference_date_end-z[0]).days >= 0])
+    if ix.ravel().shape[0] == 0:
+        return res
+    else:
+        code = str(patient_data['zip'][ix[0]][1])
+        try:
+            res[feature_index[code]] = True
+        except:
+            code = re.split('[. -]', code)[0]
+            res[feature_index[code]] = True
+        return res
 
 # def build_features_census(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
 #     res = np.zeros(len(feature_headers), dtype=float)
@@ -1681,10 +1679,10 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
 
         bdate = data_dic[k]['bdate']
         mrns[ix] = data_dic[k]['mrn']
-        if data_dic[k]['mrn'] in data_dic_moms:
-            maternal_data = data_dic_moms[data_dic[k]['mrn']]
-            if data_dic_moms[data_dic[k]['mrn']]['mom_mrn'] in data_dic_hist_moms:
-                maternal_hist_data = data_dic_hist_moms[data_dic_moms[data_dic[k]['mrn']]['mom_mrn']]
+        if mrns[ix] in data_dic_moms:
+            maternal_data = data_dic_moms[mrns[ix]]
+            if data_dic_moms[mrns[ix]]['mom_mrn'] in data_dic_hist_moms:
+                maternal_hist_data = data_dic_hist_moms[data_dic_moms[mrns[ix]]['mom_mrn']]
                 try:
                     mother_child_data = mother_child_dic[data_dic_moms[k]['mom_mrn']]
                 except:
@@ -1696,10 +1694,10 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
             maternal_hist_data = {}
             mother_child_data = {}
         try:
-            lat_lon_item = lat_lon_dic[str(data_dic[k]['mrn'])]
+            lat_lon_item = lat_lon_dic[str(mrns[ix])]
         except:
             try:
-                lat_lon_item = lat_lon_dic[data_dic[k]['mrn']]
+                lat_lon_item = lat_lon_dic[mrns[ix]]
             except:
                 lat_lon_item = {}
         ix_pos_start = 0

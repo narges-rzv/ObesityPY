@@ -97,6 +97,7 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=['Maternal'],
         print_statements.append(string)
 
     index_finder_filterstr = np.zeros(len(headers))
+    index_finder_maternal = [f.startswith('Maternal') for f in headers]
 
     for i, fstr in enumerate(filterSTR):
         # print(index_finder_filterstr + np.array([h.startswith(fstr) for h in headers]))
