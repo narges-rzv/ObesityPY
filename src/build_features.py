@@ -16,6 +16,11 @@ from dateutil.relativedelta import relativedelta
 from tqdm import tqdm
 
 def if_data_nonexistent(func):
+    """
+    Decorator function to return an array of zeros if the provided data dictionary does not have
+    the desired data categroy within it. Will ensure that incomplete data dictionaries can also be
+    used with call_build_function().
+    """
     @functools.wraps(func)
     def wrapper_decorator(*args, **kwargs):
         try:
@@ -1199,6 +1204,23 @@ def build_feature_num_visits_index():
 def get_obesity_label_bmi(pct, bmi, age, gender):
     """
     Returns the obesity label as underweight, normal, overweight, obese, class I or class II severe obesity
+
+    Parameters
+    ----------
+    pct : float or int
+        Percentile for patient's BMI given their age and gender.
+    bmi : float or int
+        Patient's BMI.
+    age : float or int
+        Patient's age in years.
+    gender : int
+        0 : Male
+        1 : Female
+
+    Returns
+    -------
+    label : str
+        Outcome label for a patient's BMI given their age and gender.
     """
     if 0 <= pct < 0.05:
         return 'underweight'
@@ -1214,9 +1236,29 @@ def get_obesity_label_bmi(pct, bmi, age, gender):
         else:
             return 'obese'
 
-def get_obesity_label_wfl(pct, ht, wt, gender):
+def get_obesity_label_wfl(pct, ht, wt, gender, units='usa'):
     """
     Returns the obesity label as underweight, normal, overweight, obese, class I or class II severe obesity
+
+    Parameters
+    ----------
+    pct : int or float
+        Percentile for patient's weight for length.
+    ht : int or float
+        Patient's height.
+    wt : int or float
+        Patient's weight.
+    gender : int
+        0 : Male.
+        1 : Female.
+    Units : str, default 'usa'
+        'usa' : uses inches and pounds for height and weight, respectively.
+        'metric' : uses centimeters and kilograms for height and weigth, respectively.
+
+    Returns
+    -------
+    label : str
+        CDC classifcation for a patient's weight for length percentile.
     """
     if 0 <= pct < 0.05:
         return 'underweight'
@@ -1225,28 +1267,43 @@ def get_obesity_label_wfl(pct, ht, wt, gender):
     elif 0.85 <= pct < 0.95:
         return 'overweight'
     elif 0.95 <= pct < 1:
-        if zscore.severe_obesity_wfl(gender, ht, wt, units='usa', severity=2):
+        if zscore.severe_obesity_wfl(gender, ht, wt, units=units, severity=2):
             return 'class II severe obesity'
-        elif zscore.severe_obesity_wfl(gender, ht, wt, units='usa', severity=1):
+        elif zscore.severe_obesity_wfl(gender, ht, wt, units=units, severity=1):
             return 'class I severe obesity'
         else:
             return 'obese'
 
 def get_final_bmi(data_dic, agex_low, agex_high, mrnsForFilter=[], filter=True):
     """
-    Function to get the distinct bmi percentile readings for predictions.
-    Returns outcome percentiles and labels
-    #### PARAMETERS ####
-    data_dic: dictionary of patient data
-    agex_low: low age range for outcome prediction
-    agex_high: high age range for outcome prediction
-    mrnsForFilter: list of mrns to get outcomes for
-    filter: default==True; if True returns mrn filtered data only, otherwise returns all data with either a 0 or ''
+    Function to get the distinct BMI percentile readings for predictions.
+    
+    Parameters
+    ----------
+    data_dic : dict
+        Dictionary of patient data
+    agex_low : int or float
+        Lower bound for prediction window.
+    agex_high : int or float
+        Upper bound for prediction window.
+    mrnsForFilter : list
+        List of MRNs for which data will be produced.
+    filter : bool, default True
+        If True returns mrn filtered data only, otherwise returns all data with either a 0 or '' for patient's with no data available.
+    
+    Returns
+    -------
+    outcome : array, shape (n_samples, ), dtype float
+        Median BMI reading for all readings in the prediction window.
+    outcome_pct : array, shape (n_samples, ), dtype float
+        CDC percentile corresponding to the BMI, age, and gender of patient.
+    outcome_labels : array, shape (n_samples, ), dtype str
+        CDC label for a patient's BMI percentile.
     """
-    outcome = np.zeros(len(data_dic.keys()), dtype=float)
-    outcome_pct = np.zeros(len(data_dic.keys()), dtype=float)
-    outcome_labels = [''] * len(data_dic.keys())
-    indices = np.zeros(len(data_dic.keys()))
+    outcome = np.zeros(len(data_dic), dtype=float)
+    outcome_pct = np.zeros(len(data_dic), dtype=float)
+    outcome_labels = [''] * len(data_dic)
+    indices = np.zeros(len(data_dic))
     for (ix, k) in enumerate(data_dic):
         if (len(mrnsForFilter) > 0) & (str(data_dic[k]['mrn']) not in mrnsForFilter):
             continue
@@ -1266,18 +1323,34 @@ def get_final_bmi(data_dic, agex_low, agex_high, mrnsForFilter=[], filter=True):
 def get_latest_reading(data_dic, months_from, months_to, mrnsForFilter=[], zero_filter=True):
     """
     Function to get the distinct bmi percentile readings for predictions.
-    Returns outcome percentiles and labels
-    #### PARAMETERS ####
-    data_dic: dictionary of patient data
-    months_from: low age range for valid data readings
-    months_to: high age range for valid data readings
-    mrnsForFilter: list of mrns to get outcomes for
-    zero_filter: default==True; if True returns mrn filtered data only, otherwise returns all data with either a 0 or ''
+
+    Parameters
+    ----------
+    data_dic : dict
+        Data dictionary of patient data
+    months_from : int
+        Lower bound on data consideration window.
+    months_to : int
+        Upper bound on data consideration window.
+    mrnsForFilter : list 
+        List of mrns that will be skipped.
+    zero_filter : bool, default True
+        Indicator to return mrn filtered data only or all data.
+
+    Returns
+    -------
+    outcome : array, shape (len(data_dic),)
+        Weight for length or BMI if months_to is less than or equal to or greather than 24, respectively.
+        If zero_filter, then shape is smaller.
+    outcome_pct : array, shape (len(data_dic),)
+        Percentile for outcome data. If zero_filter, then shape is smaller.
+    outcome_labels : array, shape (len(data_dic),)
+        String output for label class ranging from underweight to class II severe obesity.
     """
-    outcome = np.zeros(len(data_dic.keys()), dtype=float) if months_to > 24 else np.zeros((len(data_dic.keys()),2), dtype=float)
-    outcome_pct = np.zeros(len(data_dic.keys()), dtype=float)
-    outcome_labels = [''] * len(data_dic.keys())
-    indices = np.zeros(len(data_dic.keys()))
+    outcome = np.zeros(len(data_dic), dtype=float) if months_to > 24 else np.zeros((len(data_dic), 2), dtype=float)
+    outcome_pct = np.zeros(len(data_dic), dtype=float)
+    outcome_labels = [''] * len(data_dic)
+    indices = np.zeros(len(data_dic))
     for (ix, k) in enumerate(data_dic):
         if (len(mrnsForFilter) > 0) & (str(data_dic[k]['mrn']) not in mrnsForFilter):
             continue
@@ -1296,7 +1369,25 @@ def get_latest_reading(data_dic, months_from, months_to, mrnsForFilter=[], zero_
 
 def get_final_bmi_single(patient_data, agex_low, agex_high):
     """
-    Function to get the BMI percentile and outcome label for an individual patient
+    Function to get the BMI percentile and outcome label for an individual patient.
+
+    Parameters
+    ----------
+    patient_data : dict
+        Data dictionary for a single patient.
+    agex_low : int or float
+        Lower bound on age for prediction window.
+    agex_high : int or float
+        Upper bound on age for prediction window.
+
+    Returns
+    -------
+    BMI : float
+        Median BMI value for all BMI readings between agex_low and agex_low. 0 if there is no valid data.
+    BMI_pct : float
+        Percentile for the BMI value with respect to the median age for all readings in the data. 0 if there is no valid data.
+    obese_label : string
+        Label ranging from underweight to class II severe obesity for a patient's BMI and age. '' if there is no valid data.
     """
     bdate = patient_data['bdate']
     gender = patient_data['gender']
@@ -1324,7 +1415,24 @@ def get_final_bmi_single(patient_data, agex_low, agex_high):
 def get_latest_label_single(patient_data, months_from, months_to):
     """
     Function to get the BMI or WFL percentile and outcome label for an individual patient
-    Returns age (in years), the bmi or wfl percentile, and the cdc label for underweight, normal, overweight, obese, class I severe obesity, and class II severe obesity
+    
+    Parameters
+    ----------
+    patient_data : dict
+        Data dictionary for patient.
+    months_from : int
+        Lower bound on data validity window.
+    months_to : int
+        Upper bound on data validity window.
+
+    Returns
+    -------
+    age : float.
+        Age of patient at reading in years
+    percentile : float
+        BMI or wfl percentile for patient a patitent under or over 2 years of age, respectively.
+    label : 
+        CDC label for underweight, normal, overweight, obese, class I severe obesity, and class II severe obesity coresponding with percentile.
     """
     bdate = patient_data['bdate']
     gender = patient_data['gender']
@@ -1363,18 +1471,31 @@ def get_latest_label_single(patient_data, months_from, months_to):
 def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic, env_dic, agex_low, agex_high, months_from, months_to, percentile, prediction='obese', mrnsForFilter=[]):
     """
     Creates the base data set to be used in analysis for obesity prediction.
-    #### PARAMETERS ####
-    data_dic: data dictionary of children's EHR
-    data_dic_moms: data dictionary of of mother's EHR at time of child's birth
-    data_dic_hist_moms: data dictionary of mother's EHR that is within the same hospital system
-    lat_lon_dic: data dictionary of mother's geocoded address information
-    env_dic: data dictionary of census features
-    agex_low: low age (in years) for prediction
-    agex_high: high age (in years) for prediction
-    months_from: start date (in months) for date filter
-    months_to: end date (in months) for date filter
-    percentile: set to False
-    prediction: default = 'obese'. obesity threshold for bmi/age percentile for outcome class.
+
+    Parameters
+    ----------
+    data_dic : dict
+        Data dictionary of children's EHR.
+    data_dic_moms : dict
+        Data dictionary of of mother's EHR at time of child's birth.
+    data_dic_hist_moms : dict
+        Data dictionary of mother's EHR that is within the same hospital system.
+    lat_lon_dic : dict
+        Data dictionary of the child's or mother's geocoded address information.
+    env_dic : dict
+        Data dictionary of census features. --------- DOUBLE CHECK THE FORMAT OF THIS DATA!!!!
+    agex_low : int or float
+        Lower bound on prediction window.
+    agex_high : int or float
+        Upper bound on prediction window.
+    months_from : int
+        Lower bound on data validity window.
+    months_to int
+        Upper bound on data validity window.
+    percentile : bool, default False
+        Filter to ensure certain types of features exist for each data point.
+    prediction : str, default 'obese'
+        Obesity threshold for bmi/age percentile for outcome class.
         Source: https://www.cdc.gov/obesity/childhood/defining.html
         'underweight': 0.0 <= bmi percentile < 0.05
         'normal': 0.05 <= bmi percentile < 0.85
@@ -1384,7 +1505,21 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         'class II severe obesity': class II severe obesity; 140% of the 95th percentile
         'multi': multiclass label for columns ['underweight','normal','overweight','obese','class I severe obesity','class II severe obesity']
             NOTE: will return redundant labels for obese and severe obese classes as they are a subset
-    mrnsForFilter: default = []. mrns to create data for.
+    mrnsForFilter : list, default []
+        Filter for valid MRNs. All other data will be skipped.
+
+    Returns
+    -------
+    features : array, shape (n_samples, n_features)
+        Data array.
+    outcome : array, shape (n_samples, )
+        Target data.
+    outcomelabels : array, shape (n_samples, )
+        Target labels.
+    headers : list, shape (n_features)
+        Feature names corresponding to columns of features.
+    mrns : array, shape (n_samples, )
+        MRNs for patients with created data.
     """
 
     outcome = np.zeros(len(data_dic.keys()), dtype=float)
@@ -1585,7 +1720,6 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
                 ix_pos_end += len(funcs[pos+1][1][1])
             except IndexError:
                 ix_pos_end = features.shape[1]
-
 
     # Calculate the Z-Scores for each of the vital periods and the gain between them
     zscore_headers = ['Vital: Wt for Length ZScore-AtBirth','Vital: Wt for Length ZScore-avg0to1','Vital: Wt for Length ZScore-avg1to3','Vital: Wt for Length ZScore-avg3to5','Vital: Wt for Length ZScore-avg5to7','Vital: Wt for Length ZScore-avg7to10','Vital: Wt for Length Zscore-avg10to13','Vital: Wt for Length ZScore-avg13to16','Vital: Wt for Length ZScore-avg16to19','Vital: Wt for Length ZScore-avg19to24','Vital: Wt for Length ZScore-latest']
