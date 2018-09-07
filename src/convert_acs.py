@@ -11,7 +11,7 @@ def csv_from_excel(excel_file):
     with open(excel_file.replace('.xls','.csv'), 'w') as f:
         wr = csv.writer(f, quoting=csv.QUOTE_ALL)
         for i in range(worksheet.nrows):
-            wr.writerow([cell.encode('utf-8') for cell in worksheet.row_values(i)])
+            wr.writerow(map(str, worksheet.row_values(i)))
     return
 
 if __name__ == '__main__':
