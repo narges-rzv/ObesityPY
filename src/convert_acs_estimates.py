@@ -11,8 +11,8 @@ import multiprocessing as mp
 from functools import reduce
 from collections import defaultdict
 
-def dd():
-    return defaultdict(dd)
+def set_default():
+    return defaultdict(set_default)
 
 def to_dict(data):
     if type(data) == defaultdict:
@@ -40,7 +40,7 @@ def merge(dicts):
         if all(isinstance(dicts[i][k], dict) for i in k_in):
             yield(k, dict(merge([dicts[i][k] for i in k_in])))
         else:
-            yield(k, *[dicts[i][k] for i in k_in])
+            yield(k, *[dicts[i] for i in k_in])
 
 def read_headers(fname):
     """
@@ -61,7 +61,7 @@ def read_data(fname, descriptions):
     """
     Function to combine headers with data
     """
-    data = dd()
+    data = set_default()
     record_rows = set([*geo_data])
     with open(fname, 'r') as f:
         reader = csv.reader(f)
