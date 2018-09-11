@@ -4,7 +4,8 @@ import csv
 import time
 import pickle
 import argparse
-import censusgeocode as cg
+
+import utils
 
 def create_loc_dict(headers, line, location, lat, lon):
     tract = int(location['TRACT'])
@@ -26,25 +27,8 @@ def create_loc_dict(headers, line, location, lat, lon):
     }
     return county, tract, loc_dict
 
-def read_line(headers, i, line):
-    """
-    Reads the line from the csv and indefinitely tries to get the census geocoder
-    to return a valid location. The geocoder seems to arbitrarily send an error
-    message. My best guess is this is some weird connection issue.
-    """
-    lat = float(line[headers['latitude']])
-    lon = float(line[headers['longitude']])
-    print(i, lat, lon)
-    # keep pinging the census geocoder until a valid result is sent
-    try:
-        location = cg.coordinates(x=lon, y=lat)['2010 Census Blocks'][0]
-    except:
-        location, lat, lon = read_line(headers, i, line)
-
-    return location, lat, lon
-
 def read_file(fname):
-    locations = {}
+    locations = []
     with open(fname, 'r') as f:
         reader = csv.reader(f)
         for i, line in enumerate(reader):
@@ -52,15 +36,12 @@ def read_file(fname):
                 headers = {el:ix for ix, el in enumerate(line)}
             else:
                 line = [el.strip() for el in line]
-                location, lat, lon  = read_line(headers, i, line)
+                location, lat, lon  = utils.geocode(headers, i, line)
                 county, tract, loc_dict = create_loc_dict(headers, line, location, lat, lon)
-                try:
-                    locations[tract][county].append(loc_dict)
-                except:
-                    try:
-                        locations[tract][county] = [loc_dict]
-                    except:
-                        locations[tract] = {county: [loc_dict]}
+                # create an arbitrary key for each location to store the dictionary
+                # this will be undone to form a list of dicts with matching tracts and counties later
+                loc_dict = {tract: {county: {str(loc_dict['longitude']) + str(loc_dict['latitude']): [loc_dict]}}}
+                locations.append(loc_dict)
 
     return locations
 
@@ -74,8 +55,15 @@ if __name__ == '__main__':
     if args.save_path == '':
         args.save_path = '/'.join(el for el in args.filename.split('/')[:-1])
 
-    cg.CensusGeocode(benchmark='Public_AR_Census2010', vintage='Census2010_Census2010')
-    vacant_lots_dict = read_file(args.fname)
-    sp = '/'.join((args.save_path, 'vacant_lots_dict_10092018.pkl'))
+    vacant_lots_dict = dict(utils.merge_dicts(read_file(args.fname)))
+    for tract, d in vacant_lots_dict.items():
+        for county, d in d.items():
+            locs = d.values()
+            for loc in d.values():
+                locs.append(loc)
+    vacant_lots_dict = {tract: {county: list(countydict.values())} for tract, tractdict in vacant_lots_dict.items() for county, countydict in tractdict.items()}
+
+    dt = time.strftime("%Y%m%d")
+    sp = '/'.join((args.save_path, ''.join(('vacant_lots_dict_',dt,'.pkl'))))
     pickle.dump(vacant_lots_dict, open(sp, 'wb'))
     print('vacant lots dictionary saved to {}'.format(sp))

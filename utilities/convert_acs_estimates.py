@@ -11,36 +11,7 @@ import multiprocessing as mp
 from functools import reduce
 from collections import defaultdict
 
-def set_default():
-    return defaultdict(set_default)
-
-def to_dict(data):
-    if type(data) == defaultdict:
-        return to_dict(dict(data))
-    elif type(data) == dict:
-        for d in data:
-            data[d] = to_dict(data[d])
-        return data
-    else:
-        return data
-
-def convert(x, tp=str):
-    for k, v in x.items():
-        if type(v) == dict:
-            x[k] = convert(v, tp=tp)
-    try:
-    	return {tp(k):v for k,v in x.items()}
-    except:
-    	return x
-
-def merge(dicts):
-    for k in set().union(*[set([*d]) for d in dicts]):
-        # k_in = np.where(np.array([k in d for d in dicts]))[0]
-        k_in = [i for i,d in enumerate(dicts) if k in d]
-        if all(isinstance(dicts[i][k], dict) for i in k_in):
-            yield(k, dict(merge([dicts[i][k] for i in k_in])))
-        else:
-            yield(k, *[dicts[i] for i in k_in])
+import utils
 
 def read_headers(fname):
     """
@@ -61,7 +32,7 @@ def read_data(fname, descriptions):
     """
     Function to combine headers with data
     """
-    data = set_default()
+    data = utils.set_default()
     record_rows = set([*geo_data])
     with open(fname, 'r') as f:
         reader = csv.reader(f)
@@ -76,7 +47,7 @@ def read_data(fname, descriptions):
                 except:
                     data[geo_data[i]['tract']][geo_data[i]['county']][desc] = float(n)
 
-    return to_dict(data)
+    return utils.dd_to_dict(data)
 
 def geo_parse(fname_data, fname_headers):
     """
@@ -109,6 +80,7 @@ def process_single(args):
     i, hf, df = args
     headers, descriptions = read_headers(hf)
     data_dict = read_data(df, descriptions)
+    print('File {} processed'.format(i))
     return data_dict
 
 
@@ -138,7 +110,7 @@ if __name__ == '__main__':
     with mp.Pool(args.node_count) as p:
         outputs = p.map(process_single, arguments)
     print('ACS files processed. Merging into single dictionary.')
-    outputs = dict(merge(outputs))
+    outputs = dict(utils.merge_dicts(outputs))
     sp = '/'.join((args.save_path, 'ACS_2016_5yr_NYC_tracts.pkl'))
     pickle.dump(outputs, open(sp, 'wb'))
     print('Data saved to {}'.format(sp))
