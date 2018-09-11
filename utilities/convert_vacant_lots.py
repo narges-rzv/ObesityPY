@@ -40,7 +40,7 @@ def read_file(fname):
                 county, tract, loc_dict = create_loc_dict(headers, line, location, lat, lon)
                 # create an arbitrary key for each location to store the dictionary
                 # this will be undone to form a list of dicts with matching tracts and counties later
-                loc_dict = {tract: {county: {str(loc_dict['longitude']) + str(loc_dict['latitude']): [loc_dict]}}}
+                loc_dict = {tract: {county: {str(lon) + str(lat) + loc_dict['address']: [loc_dict]}}}
                 locations.append(loc_dict)
 
     return locations
@@ -56,11 +56,6 @@ if __name__ == '__main__':
         args.save_path = '/'.join(el for el in args.filename.split('/')[:-1])
 
     vacant_lots_dict = dict(utils.merge_dicts(read_file(args.fname)))
-    for tract, d in vacant_lots_dict.items():
-        for county, d in d.items():
-            locs = d.values()
-            for loc in d.values():
-                locs.append(loc)
     vacant_lots_dict = {tract: {county: list(countydict.values())} for tract, tractdict in vacant_lots_dict.items() for county, countydict in tractdict.items()}
 
     dt = time.strftime("%Y%m%d")

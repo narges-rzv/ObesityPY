@@ -46,6 +46,22 @@ def geocode(headers, i, line):
     return location, lat, lon
 
 def merge_dicts(dicts):
+    """
+    Merge a list of nested dictionaries on common keys.
+    
+    Parameters
+    ----------
+    dicts : list-like
+        List of dictionaries with common nested keys of arbitrary depth.
+
+    Returns
+    -------
+    generator
+        k: keys
+        v: values
+
+    merged_dict = dict(merge_dicts([dict1, dict2, ...]))
+    """
     for k in set().union(*[set([*d]) for d in dicts]):
         # k_in = np.where(np.array([k in d for d in dicts]))[0]
         k_in = [i for i,d in enumerate(dicts) if k in d]
