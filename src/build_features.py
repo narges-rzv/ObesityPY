@@ -3,6 +3,7 @@ import time
 import pickle
 import zscore
 import warnings
+import datetime
 import functools
 import numpy as np
 import pandas as pd
@@ -398,16 +399,23 @@ def build_features_census_latest(patient_data, maternal_data, maternal_hist_data
 @if_data_nonexistent
 def build_features_numVisits(patient_data, maternal_data, maternal_hist_data, lat_lon_data, env_data, reference_date_start, reference_date_end, feature_index, feature_headers):
     res = np.zeros(len(feature_headers), dtype=int)
-    dates = []
-    for item in ['diags','vitals','labs','meds']:
-        if item in [*patient_data]:
-            dates += [dt[0] for d in patient_data[item] for dt in patient_data[item][d] if dt[0] > reference_date_start and dt[0] < reference_date_end]
-    for item in ['address','email','zip']:
-        if item in [*patient_data]:
-            dates += [dt[0] for dt in patient_data[item] if dt[0] > reference_date_start and dt[0] < reference_date_end]
-    if 'odate' in [*patient_data]:
-        dates += [dt for dt in patient_data['odate'] if dt > reference_date_start and dt < reference_date_end]
-    res[0] = len(set(dates))
+    dates = set()
+    for key, vals in patient_data.items():
+        if key == 'bdate':
+            continue
+        if isinstance(vals, dict):
+            dates.update(el[0] for lst in vals.values() for el in lst if reference_date_start < el[0] < reference_date_end)
+        elif isinstance(vals, list):
+            if isinstance(vals[0], list):
+                dates.update(el[0] for el in vals if reference_date_start < el[0] < reference_date_end)
+            else:
+                dates.update(el for el in vals if reference_date_start < el < reference_date_end)
+        elif isinstance(vals, datetime.datetime):
+            if reference_date_start < vals < reference_date_end:
+                dates.update({vals})
+        else:
+            continue
+    res[0] = len(dates)
     return res
 
 @if_data_nonexistent

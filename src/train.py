@@ -34,7 +34,7 @@ global b_wfl
 g_wfl = np.loadtxt(config_file.wght4leng_girl)
 b_wfl = np.loadtxt(config_file.wght4leng_boy)
 
-def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=['Maternal'], percentile=False, mrns=[], filterSTRThresh=[], print_out=True):
+def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[''], percentile=False, mrns=[], filterSTRThresh=[], print_out=True, maternal=False):
     """
     Filter the data set to the selected cohort via specified features.
 
@@ -48,17 +48,19 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=['Maternal'],
         Target label; binary for predicted outcome.
     headers : array-like
         Feature names corresponding to x.
-    filterSTR : list
-        Default: []. List of feature names (or beginning of feature names) to filter the data with.
+    filterSTR : list, default []
+        List of feature names (or beginning of feature names) to filter the data with.
         Corresponds to filterSTRThresh.
-    percentile : boolean
-        Default: False.
-    mrns : list
-        Default: []. List of mrns represented in the data.
+    percentile : bool, default False
+        return to this.
+    mrns : list, default []
+        List of mrns represented in the data.
     filterSTRThresh : list
         Default: []. List of thresholds to filter cohort to match with feature names in filterSTR.
-    print_out : boolean
-        Default: True. Indicator for whether to print out logging information or to return it at the end.
+    maternal : bool, default False
+        Return children who have maternal data available in addition to other filter criteria variables.
+    print_out : bool, default True
+        Indicator for whether to print out logging information or to return it at the end.
         Mainly used for batch many combinations of data in parallel to keep the logging information together
         for each data creation cycle.
 
@@ -112,7 +114,7 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=['Maternal'],
                 print_statements.append(string)
                 
         index_finder_filterstr += index_finder_filterstr_tmp
-        string = 'total number of people who have: {0:s} is: {1:,.0f}'.format(str(headers[index_finder_filterstr_tmp]), (x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i]).sum())
+        string = 'total number of people who have: {0:s} is: {1:,.0f}'.format(str(headers[index_finder_filterstr_tmp]), (x[:,index_finder_filterstr_tmp] > filterSTRThresh[i]).sum(axis=1))
         if print_out:
             print(string)
         else:
@@ -120,16 +122,24 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=['Maternal'],
 
     index_finder_filterstr = (index_finder_filterstr > 0)
 
-    if (len(filterSTR) != 0) and (percentile == False):
-        ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel())
-    else:
-        ix = (y > 10) & (y < 40)
+    ix_maternal = ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+    ix_valid_bmi = (y > 10) & (y < 40)
+    ix_user_filter = (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel())
 
-    string = 'total number of people who have a valid BMI measured (10 > BMI < 40): {0:,.0f}'.format(((y > 10) & (y < 40)).sum())
-    string += '\ntotal number of people who have all filtered variables: {0:,.0f}'.format((((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
-    string += '\ntotal number of people who have maternal data available: {0:,.0f}'.format(((x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum())
-    string += '\nintersection of the three is: {0:,.0f}'.format((ix & (x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum())
-    string += '\n{0:,.0f} patients selected (regardless of maternal data availability unless entered manually)...'.format(ix.sum())
+    if len(filterSTR) != 0 and percentile == False:
+        ix = ix_valid_bmi & ix_user_filter
+    else:
+        ix = ix_valid_bmi
+    if maternal:
+        ix = ix & ix_maternal
+
+    string = 'total number of people who have a valid BMI measured (10 > BMI < 40): {0:,.0f}'.format(ix_valid_bmi.sum())
+    string += '\ntotal number of people who have all filtered variables: {0:,.0f}'.format(ix_user_filter.sum())
+    string += '\ntotal number of people who have maternal data available: {0:,.0f}'.format(ix_maternal.sum())
+    if maternal:
+        string += '\nintersection of the three is: {0:,.0f}'.format(ix.sum())
+    else:
+        string += '\n{0:,.0f} patients selected (excludes maternal)...'.format(ix.sum())
     if print_out:
         print(string)
         return ix, x[ix,:], y[ix], ylabel[ix], mrns[ix]
@@ -774,7 +784,7 @@ def lasso_filter(x, y, ylabel, feature_headers, print_out=True):
 
     return np.array(outputs)
 
-def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, min_occur=0, lasso_selection=False, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]), delay_print=False): #filterSTR='Gender:0 male'
+def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, min_occur=0, lasso_selection=False, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]), use_maternal=False, delay_print=False): #filterSTR='Gender:0 male'
     """
     Transforms the data to be run for ML analyses. Returns x2, y2, y2label, mrns2, ix_filter, and feature_headers2.
     NOTE: use ix_filter to capture relavent data points from original array as the new dimensions will be differentself.
@@ -858,6 +868,8 @@ def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lo
         Save the characteristic tables to a file.
     subset : array, default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])
         Used to determine timeseries subset.
+    use_maternal : bool, default False.
+        Indicator to determine if onyl considering children with maternal data.
     delay_print : bool, default False
         Print everything at the end -- created for when creating data running in parallel and don't want jumbled results
     """
@@ -883,10 +895,10 @@ def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lo
         x1[:,bin_ix] = (x1[:,bin_ix] > 0) * 1.0
 
     if delay_print:
-        ix_filter, x2, y2, y2label, mrns, print_statements = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh, print_out=not delay_print)
+        ix_filter, x2, y2, y2label, mrns, print_statements = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh, maternal=use_maternal, print_out=not delay_print)
         reporting += print_statements
     else:
-        ix_filter, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh, print_out=not delay_print)
+        ix_filter, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh, maternal=use_maternal, print_out=not delay_print)
     if get_char_tables:
         print_charac_table(x2, y2, y2label, feature_headers)
         newdir = time.strftime("table_stats_%Y%m%d_")+str(months_from)+'to'+str(months_to)+'months_'+str(agex_low)+'to'+str(agex_high)+'years'
