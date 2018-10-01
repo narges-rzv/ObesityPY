@@ -405,11 +405,11 @@ def build_features_numVisits(patient_data, maternal_data, maternal_hist_data, la
             continue
         if isinstance(vals, dict):
             dates.update(el[0] for lst in vals.values() for el in lst if reference_date_start < el[0] < reference_date_end)
-        elif isinstance(vals, list):
-            if isinstance(vals[0], list):
-                dates.update(el[0] for el in vals if reference_date_start < el[0] < reference_date_end)
-            else:
-                dates.update(el for el in vals if reference_date_start < el < reference_date_end)
+        # elif isinstance(vals, list):
+        #     if isinstance(vals[0], list):
+        #         dates.update(el[0] for el in vals if reference_date_start < el[0] < reference_date_end)
+        #     else:
+        #         dates.update(el for el in vals if reference_date_start < el < reference_date_end)
         elif isinstance(vals, datetime.datetime):
             if reference_date_start < vals < reference_date_end:
                 dates.update({vals})
@@ -1626,30 +1626,30 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         (build_features_mat_birthpl, [ feature_index_mat_birthpl, feature_headers_mat_birthpl]),
         (build_features_mat_agedel, [ feature_index_mat_agedeliv, feature_headers_age_deliv]),
         #historical maternal features
-        (build_features_mat_hist_vitalsAverage_prePregnancy, [feature_index_vitalLatest, ['Maternal '+h+'-prePregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_vitalsAverage_firstTri, [feature_index_vitalLatest, ['Maternal '+h+'-firstTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_vitalsAverage_secTri, [feature_index_vitalLatest, ['Maternal '+h+'-secondTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_vitalsAverage_thirdTri, [feature_index_vitalLatest, ['Maternal '+h+'-thirdTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_vitalsAverage_postPregnancy, [feature_index_vitalLatest, ['Maternal '+h+'-postPregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_vitalsAverage_otherPregnancy, [feature_index_vitalLatest, ['Maternal '+h+'-otherPregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_prePregnancy, [feature_index_mat_hist_labsAverage, ['Maternal '+h+'-prePregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_firstTri, [feature_index_mat_hist_labsAverage, ['Maternal '+h+'-firstTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_secTri, [feature_index_mat_hist_labsAverage, ['Maternal '+h+'-secondTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_thrirdTri, [feature_index_mat_hist_labsAverage, ['Maternal '+h+'-thirdTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_postPregnancy, [feature_index_mat_hist_labsAverage, ['Maternal '+h+'-postPregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_labsAverage_otherPregnancy, [feature_index_mat_hist_labsAverage, ['Maternal '+h+'-otherPregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),
-        (build_features_mat_hist_icdCount_prePregnancy, [feature_index_mat_hist_icd, ['Maternal '+h+'-prePregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_icdCount_firstTri, [feature_index_mat_hist_icd, ['Maternal '+h+'-firstTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_icdCount_secTri, [feature_index_mat_hist_icd, ['Maternal '+h+'-secondTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_icdCount_thrirdTri, [feature_index_mat_hist_icd, ['Maternal '+h+'-thirdTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_icdCount_postPregnancy, [feature_index_mat_hist_icd, ['Maternal '+h+'-postPregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_icdCount_otherPregnancy, [feature_index_mat_hist_icd, ['Maternal '+h+'-otherPregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_prePregnancy, [feature_index_mat_hist_procsAverage, ['Maternal '+h+'-prePregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_firstTri, [feature_index_mat_hist_procsAverage, ['Maternal '+h+'-firstTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_secTri, [feature_index_mat_hist_procsAverage, ['Maternal '+h+'-secondTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_thrirdTri, [feature_index_mat_hist_procsAverage, ['Maternal '+h+'-thirdTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_postPregnancy, [feature_index_mat_hist_procsAverage, ['Maternal '+h+'-postPregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic]),
-        (build_features_mat_hist_proceduresCount_otherPregnancy, [feature_index_mat_hist_procsAverage, ['Maternal '+h+'-otherPregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic])
+        (build_features_mat_hist_vitalsAverage_prePregnancy, [feature_index_vitalLatest, [h+'-prePregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),
+        (build_features_mat_hist_vitalsAverage_firstTri, [feature_index_vitalLatest, [h+'-firstTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),
+        (build_features_mat_hist_vitalsAverage_secTri, [feature_index_vitalLatest, [h+'-secondTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),
+        (build_features_mat_hist_vitalsAverage_thirdTri, [feature_index_vitalLatest, [h+'-thirdTrimester' for h in feature_headers_vitalsLatest], mother_child_dic]),
+        (build_features_mat_hist_vitalsAverage_postPregnancy, [feature_index_vitalLatest, [h+'-postPregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),
+        (build_features_mat_hist_vitalsAverage_otherPregnancy, [feature_index_vitalLatest, [h+'-otherPregnancy' for h in feature_headers_vitalsLatest], mother_child_dic]),
+        (build_features_mat_hist_labsAverage_prePregnancy, [feature_index_mat_hist_labsAverage, [h+'-prePregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),
+        (build_features_mat_hist_labsAverage_firstTri, [feature_index_mat_hist_labsAverage, [h+'-firstTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),
+        (build_features_mat_hist_labsAverage_secTri, [feature_index_mat_hist_labsAverage, [h+'-secondTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),
+        (build_features_mat_hist_labsAverage_thrirdTri, [feature_index_mat_hist_labsAverage, [h+'-thirdTrimester' for h in feature_headers_mat_hist_labs], mother_child_dic]),
+        (build_features_mat_hist_labsAverage_postPregnancy, [feature_index_mat_hist_labsAverage, [h+'-postPregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),
+        (build_features_mat_hist_labsAverage_otherPregnancy, [feature_index_mat_hist_labsAverage, [h+'-otherPregnancy' for h in feature_headers_mat_hist_labs], mother_child_dic]),
+        (build_features_mat_hist_icdCount_prePregnancy, [feature_index_mat_hist_icd, [h+'-prePregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),
+        (build_features_mat_hist_icdCount_firstTri, [feature_index_mat_hist_icd, [h+'-firstTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),
+        (build_features_mat_hist_icdCount_secTri, [feature_index_mat_hist_icd, [h+'-secondTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),
+        (build_features_mat_hist_icdCount_thrirdTri, [feature_index_mat_hist_icd, [h+'-thirdTrimester' for h in feature_headers_mat_hist_icd], mother_child_dic]),
+        (build_features_mat_hist_icdCount_postPregnancy, [feature_index_mat_hist_icd, [h+'-postPregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),
+        (build_features_mat_hist_icdCount_otherPregnancy, [feature_index_mat_hist_icd, [h+'-otherPregnancy' for h in feature_headers_mat_hist_icd], mother_child_dic]),
+        (build_features_mat_hist_proceduresCount_prePregnancy, [feature_index_mat_hist_procsAverage, [h+'-prePregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic]),
+        (build_features_mat_hist_proceduresCount_firstTri, [feature_index_mat_hist_procsAverage, [h+'-firstTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),
+        (build_features_mat_hist_proceduresCount_secTri, [feature_index_mat_hist_procsAverage, [h+'-secondTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),
+        (build_features_mat_hist_proceduresCount_thrirdTri, [feature_index_mat_hist_procsAverage, [h+'-thirdTrimester' for h in feature_headers_mat_hist_procs], mother_child_dic]),
+        (build_features_mat_hist_proceduresCount_postPregnancy, [feature_index_mat_hist_procsAverage, [h+'-postPregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic]),
+        (build_features_mat_hist_proceduresCount_otherPregnancy, [feature_index_mat_hist_procsAverage, [h+'-otherPregnancy' for h in feature_headers_mat_hist_procs], mother_child_dic])
         # (build_features_mat_hist_medsAverage_prePregnancy, [feature_index_mat_hist_medsAverage, [h+'-prePregnancy' for h in feature_headers_mat_hist_meds], mother_child_dic]),
         # (build_features_mat_hist_medsAverage_firstTri, [feature_index_mat_hist_medsAverage, [h+'-firstTrimester' for h in feature_headers_mat_hist_meds], mother_child_dic]),
         # (build_features_mat_hist_medsAverage_secTri, [feature_index_mat_hist_medsAverage, [h+'-secondTrimester' for h in feature_headers_mat_hist_meds], mother_child_dic]),
