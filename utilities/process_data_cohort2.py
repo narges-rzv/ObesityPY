@@ -336,7 +336,7 @@ if __name__ == '__main__':
 
     print('Creating data with {} nodes.'.format(args.node_count))
     patient_dict = {}
-    arguments = [[mrn] for mrn in set(hts[:, mrn_ix]) or set(wts[:, mrn_ix]) or set(bmis[:, mrn_ix])]
+    arguments = [[mrn] for mrn in set().union(*[set(x[:, mrn_ix]) for x in (hts, wts, bmis)])]
     with mp.Pool(args.node_count) as p:
         outputs = p.map(process_single_patient, arguments)
 
