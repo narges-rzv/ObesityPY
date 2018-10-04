@@ -44,9 +44,9 @@ def date_parse(date_string):
         datetime.datetime representation of string object.
     """
     try:
-        return datetime.strptime(date_string, '%m/%d/%Y %I:%M:%S %p')
+        return datetime.strptime(date_string, '%m/%d/%Y %I:%M:%S %p').date()
     except:
-        return datetime.strptime(date_string, '%m/%d/%Y')
+        return datetime.strptime(date_string, '%m/%d/%Y').date()
 
 # DATA FILE/FOLDER PROCESSING FUNCTIONS
 def load_single_df(args):
@@ -326,13 +326,28 @@ if __name__ == '__main__':
     wts = wts.values
     bmis = bmis.values
 
-    pat_ix = np.where(cols=='PATIENT_ID')[0][0]
-    mrn_ix = np.where(cols=='BELLEVUE_MRN')[0][0]
-    sex_ix = np.where(cols=='SEX')[0][0]
-    race_ix = np.where(cols=='RACE')[0][0]
-    bdate_ix = np.where(cols=='BIRTHDATE')[0][0]
-    evnt_ix = np.where(cols=='EVENT_DATE_TIME')[0][0]
-    val_ix = np.where(cols=='VALUE')[0][0]
+    pat_ix = np.where(cols == 'PATIENT_ID')[0][0]
+    mrn_ix = np.where(cols == 'BELLEVUE_MRN')[0][0]
+    sex_ix = np.where(cols == 'SEX')[0][0]
+    race_ix = np.where(cols == 'RACE')[0][0]
+    bdate_ix = np.where(cols == 'BIRTHDATE')[0][0]
+    evnt_ix = np.where(cols == 'EVENT_DATE_TIME')[0][0]
+    val_ix = np.where(cols == 'VALUE')[0][0]
+    field_ix = np.where(cols == 'FIELD')[0][0]
+
+    # convert all heights to inches to match data type of original data set
+    # some fields, however, are already inches, so we will ignore those
+    field_filter = (hts[:, field_ix] != 'Height (inches numeric)')
+    conversion = np.ones(hts.shape[0])
+    conversion[field_filter] = 2.54
+    hts[:, val_ix] =  np.round_((hts[:, val_ix] / conversion).astype(float), decimals=1)
+
+    # now do the same thing for weight data except for kg to lb
+    lbs = ['Admit Wt', 'Wt (lbs)', "Mom's Wt", 'Pre-Pregnancy Weight', 'OB Current Weight', 'Weight (lbs)', 'Pre-Op Weight (Kg)', 'Total Weight']
+    field_filter = np.all([wts[:, field_ix] != el for el in lbs], axis=0)
+    conversion = np.ones(wts.shape[0])
+    conversion[field_filter] = 0.45359237
+    wts[:, val_ix] =  np.round_((wts[:, val_ix] / conversion).astype(float), decimals=1)
 
     print('Creating data with {} nodes.'.format(args.node_count))
     patient_dict = {}
