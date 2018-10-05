@@ -404,14 +404,14 @@ def build_features_numVisits(patient_data, maternal_data, maternal_hist_data, la
         if key == 'bdate':
             continue
         if isinstance(vals, dict):
-            dates.update(el[0] for lst in vals.values() for el in lst if reference_date_start < el[0] < reference_date_end)
+            dates.update(el[0] for lst in vals.values() for el in lst if reference_date_start <= el[0] <= reference_date_end)
         # elif isinstance(vals, list):
         #     if isinstance(vals[0], list):
         #         dates.update(el[0] for el in vals if reference_date_start < el[0] < reference_date_end)
         #     else:
         #         dates.update(el for el in vals if reference_date_start < el < reference_date_end)
         elif isinstance(vals, datetime.datetime):
-            if reference_date_start < vals < reference_date_end:
+            if reference_date_start <= vals <= reference_date_end:
                 dates.update({vals})
         else:
             continue
