@@ -1,8 +1,5 @@
 import os
-import re
-import sys
 
-import math
 import time
 import pickle
 import random
@@ -13,7 +10,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pylab as plt
 
-from dateutil import parser
+from math import ceil
 from sklearn import metrics
 from scipy.stats import norm
 from datetime import timedelta
@@ -786,7 +783,7 @@ def lasso_filter(x, y, ylabel, feature_headers, print_out=True):
         arguments.append([it,x[tr,:],x[te,:],y[tr],y[te],ylabel[tr],ylabel[te], hyperparamlist])
 
     node_count = cpu_count()
-    node_count = math.ceil(node_count*0.8)
+    node_count = ceil(node_count*0.8)
     with ProcessPoolExecutor(max_workers=node_count) as p:
         outputs = p.map(run_lasso_single, arguments)
 
@@ -1325,7 +1322,7 @@ def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_he
         randix_track = np.zeros((N_subset, iters), dtype=int)
         ix_train_track = np.zeros((train_size, iters), dtype=int)
         ix_val_track = np.zeros((val_size, iters), dtype=int)
-        node_count = max(2,min(math.ceil(cpu_count()*0.8), cpu_count()-1))
+        node_count = max(2,min(ceil(cpu_count()*0.8), cpu_count()-1))
 
         xtest = x2[test_ix,:]; ytest = y2[test_ix]; ytestlabel = y2label[test_ix]; mrnstest = mrns[test_ix]
         for iteration in range(0, iters):
