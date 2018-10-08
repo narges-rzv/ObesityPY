@@ -8,7 +8,6 @@ import pickle
 import random
 import zscore
 import matplotlib
-import multiprocessing
 matplotlib.use('TkAgg')
 import numpy as np
 import pandas as pd
@@ -18,9 +17,10 @@ from dateutil import parser
 from sklearn import metrics
 from scipy.stats import norm
 from datetime import timedelta
-from multiprocessing import Pool
+from multiprocessing import cpu_count
 from sklearn.preprocessing import Imputer
 from dateutil.relativedelta import relativedelta
+from concurrent.futures import ProcessPoolExecutor
 
 import build_features
 import config as config_file
@@ -116,7 +116,7 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[''], percent
                 print_statements.append(string)
                 
         index_finder_filterstr += index_finder_filterstr_tmp
-        string = 'total number of people who have: {0:s} is: {1:,.0f}'.format(str(headers[index_finder_filterstr_tmp]), (x[:,index_finder_filterstr_tmp] > filterSTRThresh[i]).sum(axis=1))
+        string = 'total number of people who have: {0:s} is: {1:,.0f}'.format(str(headers[index_finder_filterstr_tmp]), (x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i]).sum())
         if print_out:
             print(string)
         else:
@@ -255,7 +255,7 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
 
 def train_regression_single(args):
     """
-    Functionally the same as train_regression, but intended to be used with multiprocessing.Pool()
+    Functionally the same as train_regression, but intended to be used with concurrent.futures.ProcessPoolExecutor()
     """
     run, x, xtest, y, ytest, ylabel, ytestlabel, percentile, modelType = args
     import sklearn
@@ -785,9 +785,9 @@ def lasso_filter(x, y, ylabel, feature_headers, print_out=True):
         te = ix_filt[int(len(ix_filt)*0.7):]
         arguments.append([it,x[tr,:],x[te,:],y[tr],y[te],ylabel[tr],ylabel[te], hyperparamlist])
 
-    node_count = multiprocessing.cpu_count()
+    node_count = cpu_count()
     node_count = math.ceil(node_count*0.8)
-    with Pool(node_count) as p:
+    with ProcessPoolExecutor(max_workers=node_count) as p:
         outputs = p.map(run_lasso_single, arguments)
 
     return np.array(outputs)
@@ -1325,7 +1325,7 @@ def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_he
         randix_track = np.zeros((N_subset, iters), dtype=int)
         ix_train_track = np.zeros((train_size, iters), dtype=int)
         ix_val_track = np.zeros((val_size, iters), dtype=int)
-        node_count = max(2,min(math.ceil(multiprocessing.cpu_count()*0.8), multiprocessing.cpu_count()-1))
+        node_count = max(2,min(math.ceil(cpu_count()*0.8), cpu_count()-1))
 
         xtest = x2[test_ix,:]; ytest = y2[test_ix]; ytestlabel = y2label[test_ix]; mrnstest = mrns[test_ix]
         for iteration in range(0, iters):
@@ -1336,7 +1336,7 @@ def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_he
             arguments.append([iteration, datax, xtest, datay, ytest, dataylabel, ytestlabel, percentile, modelType])
             randix_track[:,iteration] = randix
         single = train_regression_single if regression else train_classification_single
-        with Pool(node_count) as p:
+        with ProcessPoolExecutor(max_workers=node_count) as p:
             outputs = p.map(single, arguments)
         for model, auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test, ix_train, ix_val, results, iteration in outputs:
             ix_train_track[:,iteration] = ix_train

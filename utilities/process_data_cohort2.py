@@ -6,7 +6,8 @@ import pickle
 import argparse
 import numpy as np
 import pandas as pd
-import multiprocessing as mp
+from multiprocessing import cpu_count
+from concurrent.futures import ProcessPoolExecutor
 
 from datetime import datetime
 
@@ -100,7 +101,7 @@ def load_data(path, node_count):
     """
     hts, wts, bmis = (['Ht'], ['Wt'], ['BMI'])
     files = [('/'.join((path, fp, f)), categorize(f)) for fp in os.listdir(path) for f in os.listdir('/'.join((path, fp))) if f.endswith('txt')]
-    with mp.Pool(node_count) as p:
+    with ProcessPoolExecutor(max_workers=node_count) as p:
         outputs = p.map(load_single_df, files)
         
     for output in outputs:
@@ -111,7 +112,7 @@ def load_data(path, node_count):
         elif output[0] == 'BMI':
             bmis.append(output[1])
             
-    with mp.Pool(node_count) as p:
+    with ProcessPoolExecutor(max_workers=node_count) as p:
         outputs = p.map(concat_single, [hts, wts, bmis])
         
     for output in outputs:
@@ -308,7 +309,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--path', 
                         required=True, type=str, metavar='path', dest='path',
                         help='path to data folder')
-    parser.add_argument('-n', '--nodecount', default=math.ceil(mp.cpu_count() * 0.8),
+    parser.add_argument('-n', '--nodecount', default=math.ceil(cpu_count() * 0.8),
                         type=str, metavar='node_count', dest='node_count',
                         help='number of cpu nodes to use for processing in parallel')
     parser.add_argument('-s', '--save', default='.',
@@ -352,7 +353,7 @@ if __name__ == '__main__':
     print('Creating data with {} nodes.'.format(args.node_count))
     patient_dict = {}
     arguments = [[mrn] for mrn in set().union(*[set(x[:, mrn_ix]) for x in (hts, wts, bmis)])]
-    with mp.Pool(args.node_count) as p:
+    with ProcessPoolExecutor(max_workers=args.node_count) as p:
         outputs = p.map(process_single_patient, arguments)
 
     for patient_id, patient_data in outputs:
