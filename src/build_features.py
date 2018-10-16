@@ -1530,7 +1530,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
 
     outcome = np.zeros(len(data_dic.keys()), dtype=float)
     if prediction != 'multi':
-        np.zeros(len(data_dic.keys()), dtype=float)
+        outcomelabels = np.zeros(len(data_dic.keys()), dtype=float)
         multi = False
     else:
         outcomelabels = np.zeros((len(data_dic.keys()), 6), dtype=float)
