@@ -1241,6 +1241,8 @@ def get_obesity_label_bmi(pct, bmi, age, gender):
             return 'class I severe obesity'
         else:
             return 'obese'
+    else:
+        return 'None'
 
 def get_obesity_label_wfl(pct, ht, wt, gender, units='usa'):
     """
@@ -1279,6 +1281,8 @@ def get_obesity_label_wfl(pct, ht, wt, gender, units='usa'):
             return 'class I severe obesity'
         else:
             return 'obese'
+    else:
+        return 'None'
 
 def get_final_bmi(data_dic, agex_low, agex_high, mrnsForFilter=[], filter=True):
     """
@@ -1308,13 +1312,13 @@ def get_final_bmi(data_dic, agex_low, agex_high, mrnsForFilter=[], filter=True):
     """
     outcome = np.zeros(len(data_dic), dtype=float)
     outcome_pct = np.zeros(len(data_dic), dtype=float)
-    outcome_labels = [''] * len(data_dic)
+    outcome_labels = ['None'] * len(data_dic)
     indices = np.zeros(len(data_dic))
     for (ix, k) in enumerate(data_dic):
         if (len(mrnsForFilter) > 0) & (str(data_dic[k]['mrn']) not in mrnsForFilter):
             continue
         bmi, pct, label = get_final_bmi_single(data_dic[k], agex_low, agex_high)
-        if pct == 0 and label == '':
+        if pct == 0 and label == 'None':
             continue
         outcome[ix] = bmi
         outcome_pct[ix] = pct
@@ -1414,7 +1418,7 @@ def get_final_bmi_single(patient_data, agex_low, agex_high):
         bmi_med = np.median(np.array(BMI_list))
         return bmi_med, pct_med, get_obesity_label_bmi(pct_med, bmi_med, age_med, gender)
     elif BMI_pct_list == []:
-        return 0, 0, ''
+        return 0, 0, 'None'
     else:
         return BMI_list[0], BMI_pct_list[0], get_obesity_label_bmi(BMI_pct_list[0], BMI_list[0], age_list[0], gender)
 
@@ -1446,7 +1450,7 @@ def get_latest_label_single(patient_data, months_from, months_to):
     start_date = bdate + relativedelta(months=months_from)
     end_date = bdate + relativedelta(months=months_to)
     age_final = 0
-    label_final = ''
+    label_final = 'None'
     if months_to > 24:
         bmi_final = 0
         bmi_pct_final = 0
@@ -1528,15 +1532,23 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         MRNs for patients with created data.
     """
 
+    multi_ix = {
+        'underweight': 0,
+        'normal': 1,
+        'overweight': 2,
+        'obese': 3,
+        'class I severe obesity': [3, 4], 
+        'class II severe obesity': [3, 5],
+        'None': 6
+    }
     outcome = np.zeros(len(data_dic.keys()), dtype=float)
     if prediction != 'multi':
         outcomelabels = np.zeros(len(data_dic.keys()), dtype=float)
         multi = False
     else:
-        outcomelabels = np.zeros((len(data_dic.keys()), 6), dtype=float)
+        outcomelabels = np.zeros((len(data_dic.keys()), len(multi_ix)), dtype=float)
         multi = True
-        multi_ix = {'underweight':0,'normal':1,'overweight':2,'obese':3, 'class I severe obesity':[3,4], 'class II severe obesity':[3,5]}
-    if prediction not in ('underweight','normal','overweight','obese','class I severe obesity','class II severe obesity','multi'):
+    if prediction not in multi_ix.keys() and not multi:
         warnings.warn('Invalid prediction parameter. Using default "obese" thresholds.')
         prediction = 'obese'
 
@@ -1672,9 +1684,8 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
             continue
         flag=False
         bmi, pct, label = get_final_bmi_single(data_dic[k], agex_low, agex_high)
-        if pct == 0 and label ==  '':
+        if pct == 0 and label ==  'None':
             outcomelabels[ix] = 0
-            continue
         outcome[ix] = bmi
         if not multi:
             if prediction == 'obese':
@@ -1682,7 +1693,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
             else:
                 outcomelabels[ix] = 1 if prediction == label else 0
         else:
-            outcomelabels[ix,multi_ix[label]] = 1
+            outcomelabels[ix, multi_ix[label]] = 1
 
 
         bdate = data_dic[k]['bdate']
