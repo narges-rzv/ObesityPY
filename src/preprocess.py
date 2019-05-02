@@ -198,7 +198,7 @@ class preprocess:
         self.feature_info = params.get('feature_info', False)
         self.subset = params.get('subset', np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]))
 
-        self.label_ix = {'underweight':0,'normal':1,'overweight':2,'obese':3,'class I severe obesity':4,'class II severe obesity':5, 'None':6}
+        self.label_ix = {'underweight':0,'normal':1,'overweight':2,'obese':3,'class I severe obesity':4,'class II severe obesity':5, 'none':6}
 
     def build_data(self):
         """
@@ -380,7 +380,7 @@ class preprocess:
         print('total number of children who have a valid BMI measured (10 > BMI < 40): {0:,.0f}'.format(ix_valid_bmi.sum()))
         print('total number of children who have all filtered variables: {0:,.0f}'.format(ix_user_filter.sum()))
         print('total number of children who have maternal data available: {0:,.0f}'.format(ix_maternal.sum()))
-        print('total number of children who have vital data available: {0:,.0f}'.format(ix_maternal.sum()))
+        print('total number of children who have vital data available: {0:,.0f}'.format(ix_vital.sum()))
         print('final number of children to be considered: {0:,.0f}'.format(self.ix_filter.sum()))
         return self.x2, self.y2, self.y2_label, self.mrns2, self.ix_filter
 
@@ -467,7 +467,7 @@ class preprocess:
         print('{0:,d} features filtered with number of occurrences less than {1:,d}'.format(feature_filter.sum(), min_occur))
         return self.x2, feature_filter
 
-    def variable_subset(self):
+    def variable_subset(self, **kwargs):
         """
         Function to remove specific variables from the data.
 
@@ -495,7 +495,13 @@ class preprocess:
         self.feature_headers2 = kwargs.get('feature_headers2', self.feature_headers2)
 
         ix_subset = np.array([any(x in self.feature_subset for x in (f, f.split(':')[0].strip())) for f in self.feature_headers2])
-        print('Filtered feature size from {0:,d} variables to {1:,.0f}\n'.format(x.shape[1], ix_subset.sum()))
+        ix_subset = np.zeros(len(self.feature_headers2), dtype=bool)
+        for i, ft in enumerate(self.feature_headers2):
+            for subset in self.feature_subset:
+                if ft == subset or ft.startswith(subset):
+                    ix_subset[i] = True
+                    break
+        print('Filtered feature size from {0:,d} variables to {1:,.0f}\n'.format(self.x2.shape[1], ix_subset.sum()))
         self.x2 = self.x2[:, ix_subset]
         self.feature_headers2 = self.feature_headers2[ix_subset]
         return self.x2, self.feature_headers2, ix_subset
@@ -723,7 +729,6 @@ class preprocess:
     def preprocess(self, test_ix=[], test_size=0.2):
         # build the data
         if self.build_from_scratch:
-            print(self.label_build)
             self.x1, self.y1, self.y1_label, self.feature_headers1, self.mrns1 = self.build_data()
 
         # create a copy of the data for manipulation

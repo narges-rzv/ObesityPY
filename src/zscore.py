@@ -332,10 +332,10 @@ def severe_obesity_bmi(gender, age, bmi, unit='months', severity=1):
     """
 
     global CDC_percentiles
-    severe1 = {0: CDC_percentiles[0][:,11] * 1.2,
-              1: CDC_percentiles[1][:,11] * 1.2}
-    severe2 = {0: CDC_percentiles[0][:,11] * 1.4,
-              1: CDC_percentiles[1][:,11] * 1.4}
+    severe1 = {0: CDC_percentiles[0][:, 11] * 1.2,
+              1: CDC_percentiles[1][:, 11] * 1.2}
+    severe2 = {0: CDC_percentiles[0][:, 11] * 1.4,
+              1: CDC_percentiles[1][:, 11] * 1.4}
     if unit not in ('years','months'):
         raise ValueError('Invalid input for unit. Must be "years" or "months".')
     if unit == 'years':
@@ -348,7 +348,7 @@ def severe_obesity_bmi(gender, age, bmi, unit='months', severity=1):
     elif severity not in (1,2):
             raise ValueError('Invalid input for severity. Must be 1 or 2.')
 
-    if all([type(x) in (np.ndarray,list,tuple,set) for x in (gender,age,bmi)]):
+    if all([type(x) in (np.ndarray, list, tuple,set) for x in (gender, age, bmi)]):
         gender = np.array(gender); age = np.array(age); bmi = np.array(bmi)
         bmi = bmi.astype(float)
         severe = np.zeros(gender.reshape(-1,1).shape[0])

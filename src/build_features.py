@@ -1242,7 +1242,7 @@ def get_obesity_label_bmi(pct, bmi, age, gender):
         else:
             return 'obese'
     else:
-        return 'None'
+        return 'none'
 
 def get_obesity_label_wfl(pct, ht, wt, gender, units='usa'):
     """
@@ -1282,7 +1282,7 @@ def get_obesity_label_wfl(pct, ht, wt, gender, units='usa'):
         else:
             return 'obese'
     else:
-        return 'None'
+        return 'none'
 
 def get_final_bmi(data_dic, agex_low, agex_high, mrnsForFilter=[], filter=True):
     """
@@ -1312,13 +1312,13 @@ def get_final_bmi(data_dic, agex_low, agex_high, mrnsForFilter=[], filter=True):
     """
     outcome = np.zeros(len(data_dic), dtype=float)
     outcome_pct = np.zeros(len(data_dic), dtype=float)
-    outcome_labels = ['None'] * len(data_dic)
+    outcome_labels = ['none'] * len(data_dic)
     indices = np.zeros(len(data_dic))
     for (ix, k) in enumerate(data_dic):
         if (len(mrnsForFilter) > 0) & (str(data_dic[k]['mrn']) not in mrnsForFilter):
             continue
         bmi, pct, label = get_final_bmi_single(data_dic[k], agex_low, agex_high)
-        if pct == 0 and label == 'None':
+        if pct == 0 and label == 'none':
             continue
         outcome[ix] = bmi
         outcome_pct[ix] = pct
@@ -1418,7 +1418,7 @@ def get_final_bmi_single(patient_data, agex_low, agex_high):
         bmi_med = np.median(np.array(BMI_list))
         return bmi_med, pct_med, get_obesity_label_bmi(pct_med, bmi_med, age_med, gender)
     elif BMI_pct_list == []:
-        return 0, 0, 'None'
+        return 0, 0, 'none'
     else:
         return BMI_list[0], BMI_pct_list[0], get_obesity_label_bmi(BMI_pct_list[0], BMI_list[0], age_list[0], gender)
 
@@ -1450,7 +1450,7 @@ def get_latest_label_single(patient_data, months_from, months_to):
     start_date = bdate + relativedelta(months=months_from)
     end_date = bdate + relativedelta(months=months_to)
     age_final = 0
-    label_final = 'None'
+    label_final = 'none'
     if months_to > 24:
         bmi_final = 0
         bmi_pct_final = 0
@@ -1539,7 +1539,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
         'obese': 3,
         'class I severe obesity': [3, 4], 
         'class II severe obesity': [3, 5],
-        'None': 6
+        'none': 6
     }
     outcome = np.zeros(len(data_dic.keys()), dtype=float)
     if prediction != 'multi':
@@ -1684,7 +1684,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
             continue
         flag=False
         bmi, pct, label = get_final_bmi_single(data_dic[k], agex_low, agex_high)
-        if pct == 0 and label ==  'None':
+        if pct == 0 and label ==  'none':
             outcomelabels[ix] = 0
         outcome[ix] = bmi
         if not multi:
@@ -1739,7 +1739,7 @@ def call_build_function(data_dic, data_dic_moms, data_dic_hist_moms, lat_lon_dic
                 ix_pos_end = features.shape[1]
 
     # Calculate the Z-Scores for each of the vital periods and the gain between them
-    zscore_headers = ['Vital: Wt for Length ZScore-AtBirth','Vital: Wt for Length ZScore-avg0to1','Vital: Wt for Length ZScore-avg1to3','Vital: Wt for Length ZScore-avg3to5','Vital: Wt for Length ZScore-avg5to7','Vital: Wt for Length ZScore-avg7to10','Vital: Wt for Length Zscore-avg10to13','Vital: Wt for Length ZScore-avg13to16','Vital: Wt for Length ZScore-avg16to19','Vital: Wt for Length ZScore-avg19to24','Vital: Wt for Length ZScore-latest']
+    zscore_headers = ['Vital: Wt for Length ZScore-AtBirth','Vital: Wt for Length ZScore-avg0to1','Vital: Wt for Length ZScore-avg1to3','Vital: Wt for Length ZScore-avg3to5','Vital: Wt for Length ZScore-avg5to7','Vital: Wt for Length ZScore-avg7to10','Vital: Wt for Length ZScore-avg10to13','Vital: Wt for Length ZScore-avg13to16','Vital: Wt for Length ZScore-avg16to19','Vital: Wt for Length ZScore-avg19to24','Vital: Wt for Length ZScore-latest']
     zscore_gain_headers = ['Vital: Wt for Length ZScore-gain0to3','Vital: Wt for Length ZScore-gain1to5','Vital: Wt for Length ZScore-gain3to7','Vital: Wt for Length ZScore-gain5to10','Vital: Wt for Length ZScore-gain7to13','Vital: Wt for Length ZScore-gain10to16','Vital: Wt for Length ZScore-gain13to19','Vital: Wt for Length ZScore-gain16to24']
     headers += zscore_headers + zscore_gain_headers
 
