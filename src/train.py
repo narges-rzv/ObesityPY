@@ -1,38 +1,88 @@
 import os
-import re
-import sys
-import math
+
 import time
 import pickle
 import random
 import zscore
 import matplotlib
 matplotlib.use('TkAgg')
-import build_features
 import numpy as np
 import pandas as pd
-import multiprocessing
-import config as config_file
 import matplotlib.pylab as plt
-import outcome_def_pediatric_obesity
-from dateutil import parser
+
+from math import ceil
 from sklearn import metrics
 from scipy.stats import norm
 from datetime import timedelta
-from multiprocessing import Pool
+from multiprocessing import cpu_count
 from sklearn.preprocessing import Imputer
 from dateutil.relativedelta import relativedelta
+from concurrent.futures import ProcessPoolExecutor
+
+import build_features
+import config as config_file
+import outcome_def_pediatric_obesity
 
 random.seed(2)
+
+global g_wfl
+global b_wfl
 
 g_wfl = np.loadtxt(config_file.wght4leng_girl)
 b_wfl = np.loadtxt(config_file.wght4leng_boy)
 
-def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentile=False, mrns=[], filterSTRThresh=[], print_out=True):
+def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[''], percentile=False, mrns=[], filterSTRThresh=[], print_out=True, maternal=False, vital=False):
+    """
+    Filter the data set to the selected cohort via specified features.
+
+    Parameters
+    ----------
+    x : array
+        Data array.
+    y : array
+        Target data array.
+    ylabel : array
+        Target label; binary for predicted outcome.
+    headers : array-like
+        Feature names corresponding to x.
+    filterSTR : list, default []
+        List of feature names (or beginning of feature names) to filter the data with.
+        Corresponds to filterSTRThresh.
+    percentile : bool, default False
+        return to this.
+    mrns : list, default []
+        List of mrns represented in the data.
+    filterSTRThresh : list
+        Default: []. List of thresholds to filter cohort to match with feature names in filterSTR.
+    maternal : bool, default False
+        Return children who have maternal data available in addition to other filter criteria variables.
+    vital : bool, default False
+        Return children who have vital readings in addition to other filter criteria variables.
+    print_out : bool, default True
+        Indicator for whether to print out logging information or to return it at the end.
+        Mainly used for batch many combinations of data in parallel to keep the logging information together
+        for each data creation cycle.
+
+    Returns
+    -------
+    ix : array
+        Boolean array indicating which rows will be kept in the filtered cohort.
+    x : array
+        Data array of only the valid cohort.
+    y : array
+        Target array of only the valid cohort.
+    ylabel : array
+        Target labels array of only the valid cohort.
+    mrns : array
+        Array of mrns for valid cohort (if non-empty array is passed).
+    """
     if filterSTR.__class__ == list:
         pass
     else:
         filterSTR = [filterSTR]
+
+    if headers.__class__ != np.ndarray:
+        headers = np.array(headers)
 
     if len(filterSTRThresh) != len(filterSTR):
         filterSTRThresh = []
@@ -40,71 +90,73 @@ def filter_training_set_forLinear(x, y, ylabel, headers, filterSTR=[], percentil
     if len(filterSTRThresh) == 0 :
         filterSTRThresh = [0.5]*len(filterSTR) #make it binary, as before.
 
+    print_statements = []
+    string = 'Original cohort size is: {0:,d}, number of features: {1:,d}'.format(x.shape[0], len(headers))
     if print_out:
-        print('Original cohort size is:', x.shape[0], 'num features:',len(headers))
+        print(string)
     else:
-        print_statements = 'Original cohort size: {0:,d}, number of features: {1:,d}\n'.format(x.shape[0], len(headers))
-
-    index_finder_anyvital = np.array([h.startswith('Vital') for h in headers])
-    index_finder_maternal = np.array([h.startswith('Maternal') for h in headers])
+        print_statements.append(string)
 
     index_finder_filterstr = np.zeros(len(headers))
+    index_finder_maternal = [f.startswith('Maternal') for f in headers]
 
     for i, fstr in enumerate(filterSTR):
         # print(index_finder_filterstr + np.array([h.startswith(fstr) for h in headers]))
         index_finder_filterstr_tmp = np.array([h.startswith(fstr) for h in headers])
         if index_finder_filterstr_tmp.sum() > 1:
+            string = 'alert: filter returned more than one feature: {0:s}'.format(fstr)
+            index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
+            string += '\nusing all instances of features starting with: {0:s}, set filter to one of the following if incorrect: {0:s}'.format(fstr, str(headers[index_finder_filterstr_tmp]))
             if print_out:
-                print('alert: filter returned more than one feature:', fstr)
-                index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
-                print('set filter to h==', fstr)
+                print(string)
             else:
-                print_statements += 'alert: filter returned more than one feature: ' + str(fstr) + '\n'
-                index_finder_filterstr_tmp = np.array([h == fstr for h in headers])
-                print_statements += 'set filter to h==' + str(fstr) + '\n'
-        index_finder_filterstr = index_finder_filterstr + index_finder_filterstr_tmp
+                print_statements.append(string)
+                
+        index_finder_filterstr += index_finder_filterstr_tmp
+        string = 'total number of people who have: {0:s} is: {1:,.0f}'.format(str(headers[index_finder_filterstr_tmp]), (x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i]).sum())
         if print_out:
-            print('total number of people who have: ', np.array(headers)[index_finder_filterstr_tmp], ' is:', ( x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i] ).sum() )
+            print(string)
         else:
-            print_statements += 'total number of people who have: '+str(np.array(headers)[index_finder_filterstr_tmp])+' is: {0:,d}\n'.format((x[:,index_finder_filterstr_tmp].ravel() > filterSTRThresh[i]).sum())
+            print_statements.append(string)
 
     index_finder_filterstr = (index_finder_filterstr > 0)
 
-    # if index_finder_filterstr.sum() > 1 and filterSTR.__class__ != list:
-    #     print('instead of *startswith*',filterSTR,'...trying *equals to*', filterSTR)
-    #     index_finder_filterstr = np.array([h == filterSTR for h in headers])
+    non_dem_feats = ['Diagnosis', 'Lab', 'Maternal Diagnosis', 'Maternal Diagnosis', 'Maternal Lab History', 'Maternal Procedure History', 'Maternal Vital', 'Newborn Diagnosis', 'Vital']
+    non_dem_filt = [any(f.startswith(ndf) for ndf in non_dem_feats) for f in headers]
+    ix_vital = ((x[:, non_dem_filt] != 0.).sum(axis=1) > 0)
 
-    # import pdb
-    # pdb.set_trace()
-    if (len(filterSTR) != 0) and (percentile == False):
-        ix = (y > 10) & (y < 40) & (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()) & ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+    ix_maternal = ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+    ix_valid_bmi = (y > 10) & (y < 40)
+    ix_user_filter = (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel())
+
+    if len(filterSTR) != 0 and percentile == False:
+        ix = ix_valid_bmi & ix_user_filter
     else:
-        ix = (y > 10) & (y < 40) & ((x[:,index_finder_maternal] != 0).sum(axis=1) >= 1)
+        ix = ix_valid_bmi
+    if maternal:
+        ix = ix & ix_maternal
+    if vital:
+        ix = ix & ix_vital
+
+    string = 'total number of people who have a valid BMI measured (10 > BMI < 40): {0:,.0f}'.format(ix_valid_bmi.sum())
+    string += '\ntotal number of people who have all filtered variables: {0:,.0f}'.format(ix_user_filter.sum())
+    string += '\ntotal number of people who have maternal data available: {0:,.0f}'.format(ix_maternal.sum())
+    if maternal:
+        string += '\nintersection of the three is: {0:,.0f}'.format(ix.sum())
+    else:
+        string += '\n{0:,.0f} patients selected (excludes maternal)...'.format(ix.sum())
     if print_out:
-        print('total number of people who have a BMI measured:', sum((y > 10) & (y < 40)))
-        print('total number of people who have all filtered variables:', (((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
-        print('total number of people who have maternal data available:', ((x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum() )
-        print('intersection of the three above is:', sum(ix))
-        print(str(ix.sum()) + ' patients selected..')
+        print(string)
         return ix, x[ix,:], y[ix], ylabel[ix], mrns[ix]
-
-    # elif percentile == False:
-    #     ix = (y > 10) & (y < 40) & ((x[:,index_finder_anyvital] != 0).sum(axis=1) >= 1)
-    #     print(ix.sum())
-
-    # if (percentile == True) & (len(filterSTR) != 0):
-    #     ix = (x[:,index_finder_filterstr].ravel() == True)
-    # elif percentile == True:
-    #     ix = (x[:,index_finder_filterstr].ravel() >= False)
     else:
-        print_statements += 'total number of people who have a BMI measured: {0:,d}\n'.format(sum((y > 10) & (y < 40)))
-        print_statements += 'total number of people who have all filtered variables: {0:,d}\n'.format((((x[:,index_finder_filterstr] > np.array(filterSTRThresh)).sum(axis=1) >= index_finder_filterstr.sum()).ravel()).sum())
-        print_statements += 'total number of people who have maternal data available: {0:,d}\n'.format(((x[:,index_finder_maternal] != 0).sum(axis=1) > 0).sum())
-        print_statements += 'intersection of the three above is: {0:,d}\n'.format(sum(ix))
-        print_statements += '{0:,d} patients selected..\n\n'.format(ix.sum())
+        print_statements.append(string)
+        print_statements = '\n'.join(print_statements)
         return ix, x[ix,:], y[ix], ylabel[ix], mrns[ix], print_statements
 
 def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns):
+    """
+    NOT USED ANYMORE. Use train_regression_single() in its place for running in parallel processes.
+    """
     import sklearn
     if modelType == 'lasso':
         import sklearn.linear_model
@@ -200,7 +252,7 @@ def train_regression(x, y, ylabel, percentile, modelType, feature_headers, mrns)
 
 def train_regression_single(args):
     """
-    Functionally the same as train_regression, but intended to be used with multiprocessing.Pool()
+    Functionally the same as train_regression, but intended to be used with concurrent.futures.ProcessPoolExecutor()
     """
     run, x, xtest, y, ytest, ylabel, ytestlabel, percentile, modelType = args
     import sklearn
@@ -454,41 +506,87 @@ def train_classification_single(args):
     return (clf, auc_val, auc_test, acc_val, acc_test, mcc_val, mcc_test, ix_train, ix_val, results, run)
 
 def normalize(x, filter_percentile_more_than_percent=5, mu=[], std=[], bin_ix=[]):
-    unobserved = (x == 0)*1.0
+    """
+    Function to normalize the data.
+    
+    Parameters
+    ----------
+    x : array
+        Data array.
+    filter_percentile_more_than_percent : int or float, default 5
+        Default inputs greater this percent to be 0.
+    mu : list, default []
+        List of means for normalizing data. Will determine if not provided.
+    std : list, default []
+        List of standard deviations for normalizing data. Will determine if not provided.
+    bin_ix : list, default []
+        List of column indices for binary variables. Will determine if not provided.
+
+    Returns
+    -------
+    normed_x : array, shape (x.shape)
+        Normalized data array.
+    mu : array, shape (x.shape[1],)
+        Column means. Zero for binary columns and those returning NaNs.
+    std : array, shape (x.shape[1],)
+        Column standard deviations. 1 for binary columns and those returning NaNs.
+    bin_ix : array, shape (x.shape[1])
+        Column indices for binary variables.
+    unobserved : array, shape (x.shape)
+        Indicator array for existence of a reading in the data.
+    """
+    unobserved = (x == 0) * 1.0
     if len(bin_ix) == 0:
-        bin_ix = ( x.min(axis=0) == 0 ) & ( x.max(axis=0) == 1)
+        bin_ix = (x.min(axis=0) == 0) & (x.max(axis=0) == 1)
     xcop = x * 1.0
-    xcop[xcop==0] = np.nan
+    xcop[xcop == 0] = np.nan
     if len(mu) == 0:
         mu = np.nanmean(xcop, axis=0)
         mu[bin_ix] = 0.0
         mu[np.isnan(mu)] = 0.0
     if len(std) == 0:
         std = np.nanstd(xcop, axis=0)
-        std[std==0]=1.0
-        std[bin_ix]=1.0
-        std[np.isnan(std)]=1.0
-    normed_x = (x != 0) * ((x - mu)/ std*1.0)
-    normed_x[abs(normed_x)>filter_percentile_more_than_percent] = 0
+        std[std == 0] = 1.0
+        std[bin_ix] = 1.0
+        std[np.isnan(std)] = 1.0
+    normed_x = (x != 0) * ((x - mu) / std * 1.0)
+    normed_x[abs(normed_x) > filter_percentile_more_than_percent] = 0
     return normed_x, mu, std, bin_ix, unobserved
 
 def variable_subset(x, varsubset, h, print_out=True):
-    if not print:
-        print_statements = 'subsetting variables that are only: ' + str(varsubset) + '\n'
-        hix = np.array([hi.split(':')[0].strip() in varsubset or hi in varsubset for hi in h])
-        print_statements += 'from {0:,d} variables to {1:,.2f}\n'.format(x.shape[1], sum(hix))
-        x = x[:, hix]
-        h = np.array(h)[hix]
-        # print(h, x)
-        return x, h, print_statements
-    else:
-        print('subsetting variables that are only:', varsubset)
-        hix = np.array([hi.split(':')[0].strip() in varsubset or hi in varsubset for hi in h])
-        print('from ', x.shape[1] ,' variables to ', sum(hix))
-        x = x[:, hix]
-        h = np.array(h)[hix]
-        # print(h, x)
+    """
+    Function to remove specific variables from the data.
+
+    Parameters
+    ----------
+    x : array
+        Data array.
+    varsubset : list
+        List of features to remove from the data
+    h : list
+        List of feature names
+    print_out : bool, default True
+        Indicator for printing output or returning it. Use false if running in parallel process.
+
+    Returns
+    -------
+    x : arrray
+        Data array with specified features removed.
+    h : list
+        List of filtered features.
+    print_statements : string
+        Logging information to returned to the primary function. Only returned if print_out == False.
+    """
+    print_statements = 'subsetting variables that are only: ' + str(varsubset) + '\n'
+    hix = np.array([hi.split(':')[0].strip() in varsubset or hi in varsubset for hi in h])
+    print_statements += 'Filtered feature size from {0:,d} variables to {1:,.0f}\n'.format(x.shape[1], sum(hix))
+    x = x[:, hix]
+    h = np.array(h)[hix]
+    if print_out:
+        print(print_statements)
         return x, h
+    else:
+        return x, h, print_statements
 
 def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2label, dist_type='eucledian', cross_valid=True, mux=None, stdx=None, do_impute=False, subset=[]):
     if isinstance(feature_headers, list):
@@ -506,6 +604,9 @@ def add_temporal_features(x2, feature_headers, num_clusters, num_iters, y2, y2la
     return np.hstack([x2, trendArray]), np.hstack([feature_headers , np.array(trend_headers)]), centroids, hnew, standardDevCentroids, cnt_clusters, distances, muxnew, stdxnew
 
 def filter_correlations_via(corr_headers, corr_matrix, corr_vars_exclude, print_out=True):
+    """
+    comments
+    """
     ix_header = np.ones((len(corr_headers)), dtype=bool)
     # if len(corr_headers) == 1:
     #     if print_out:
@@ -577,7 +678,26 @@ def autoencoder_impute(x, bin_ix, hidden_nodes=100):
 
 def filter_min_occurrences(x2,feature_headers, min_occur=0, print_out=True):
     """
-    Filter columns that have less than min_occur ocurrences
+    Filter columns that have less than min_occur ocurrences.
+
+    Parameters
+    ----------
+    x2 : array
+        Data array
+    feature_headers : list
+        List of feature names corresponding to x2.
+    min_occur : int, default 0
+        Minimum number of occurrences for a feature to be considered in the data.
+    print_out : bool, default True
+
+    Returns
+    -------
+    x2 : array, shape (x2.shape[0], feature_filter)
+        Filtered data array.
+    feature_headers : list
+        Filtered feature name list.
+    statements : string
+        Information to print after process is completed in the primary function.
     """
 
     feature_filter = (np.count_nonzero(x2, axis=0) >= min_occur)
@@ -624,6 +744,25 @@ def run_lasso_single(args):
 def lasso_filter(x, y, ylabel, feature_headers, print_out=True):
     """
     Filter any columns that have zeroed out feature weights
+
+    Parameters
+    ----------
+    x : array
+        Data array.
+    y : array
+        Target data.
+    ylabel : array
+        Target labels.
+    feature_headers : list
+        Column names associated with x. Not actually used in this process
+    print_out : bool, default True
+        Indicator for printing output as it is produced. 
+
+    Returns
+    -------
+    outputs : array, shape (10, x.shape[1])
+        LASSO coefficients for each of the ten iterations to determine the most important
+        features for modeling.
     """
     N = x.shape[0]
     ixlist = np.arange(0,N)
@@ -643,75 +782,103 @@ def lasso_filter(x, y, ylabel, feature_headers, print_out=True):
         te = ix_filt[int(len(ix_filt)*0.7):]
         arguments.append([it,x[tr,:],x[te,:],y[tr],y[te],ylabel[tr],ylabel[te], hyperparamlist])
 
-    node_count = multiprocessing.cpu_count()
-    node_count = math.ceil(node_count*0.8)
-    if len(arguments) > node_count:
-        num_batches = math.ceil(float(len(arguments))/node_count)
-        outputs = []
-        for i in range(num_batches):
-            sub_args = arguments[i*node_count:(i+1)*node_count] if i < num_batches-1 else arguments[i*node_count:]
-            nodes = node_count if i < num_batches-1 else len(arguments) - (i * node_count)
-            print('Running batch {0:d} of {1:d}'.format(i+1, num_batches))
-            with Pool(node_count) as p:
-                output = p.map(run_lasso_single, sub_args)
-            for out in output:
-                outputs.append(out)
-    else:
-        with Pool(node_count) as p:
-            outputs = p.map(run_lasso_single, arguments)
+    node_count = cpu_count()
+    node_count = ceil(node_count*0.8)
+    with ProcessPoolExecutor(max_workers=node_count) as p:
+        outputs = p.map(run_lasso_single, arguments)
 
     return np.array(outputs)
 
-def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, min_occur=0, lasso_selection=False, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]), delay_print=False): #filterSTR='Gender:0 male'
+def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, min_occur=0, lasso_selection=False, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]), use_maternal=False, use_vital=False, delay_print=False): #filterSTR='Gender:0 male'
     """
     Transforms the data to be run for ML analyses. Returns x2, y2, y2label, mrns2, ix_filter, and feature_headers2.
     NOTE: use ix_filter to capture relavent data points from original array as the new dimensions will be differentself.
 
-    #### PARAMETERS ####
+    Parameters
+    ----------
     For the below features if not using set value to {}
-    data_dic: data dictionary of newborns with each child's data as value for some provided key
-    data_dic_mom: data dictionary of maternal data at birth with child mrn as key and data as value
-    data_dic_hist_moms: historical maternal data dictionary with maternal mrn as the key and data as value
-    lat_lon_dic: geocoded data dictionary of maternal addresses
-    env_dic: aggregated census data
-    x1: data array
-    y1: data to be predicted
-    y1label: obesity label for each child
-    feature_headers: list of features that matches the column space of x1
-    mrns: list of mrns that matches that corresponds to x1
+    data_dic : dict
+        Data dictionary of newborns with each child's data as value for some provided key.
+    data_dic_mom : dict
+        Data dictionary of maternal data at birth with child mrn as key and data as the values.
+    data_dic_hist_moms : dict
+        Data dictionary of historical maternal data with maternal mrn as the key and data as the values.
+    lat_lon_dic : dict
+        Data dictionary of geocoded maternal addresses
+    env_dic : dict
+    DOUBLE CHECK THE STRUCTURE OF THIS DATA AGAIN
+        Data dictionary of aggregated census data with census tract as the key. 
+    x1 : array
+        Data array.
+    y1 : array
+        Data to be predicted.
+    y1label : array
+        Label for each child
+    feature_headers : list 
+        List of features that matches the column space of x1.
+    mrns : list
+        List of mrns that matches that corresponds to x1.
 
     NOTE: the following four parameters must have matching values for creation of any precreated data sets (x1, y1, y1label, feature_headers, and mrns)
-    agex_low: lower bound on child age a prediction should be made from
-    agex_high: upper bound on child age a prediction should be made from
-    months_from: lower bound on child age for prediction
-    months_to: upper bound on child age for prediction
+    agex_low : int or float
+        Lower bound on child age a prediction window.
+    agex_high : int or float
+        Upper bound on child age a prediction window.
+    months_from : int
+        Lower bound on child age for data creation window.
+    months_to : int
+        Upper bound on child age for data creation window.
 
-    outcome: default = 'obese'. obesity threshold for bmi/age percentile for outcome class.
-        Source: https://www.cdc.gov/obesity/childhood/defining.html
-        'overweight': 0.85 <= bmi percentile < 0.95
-        'obese': 0.95 <= bmi percentile <= 1.0
-        'extreme': 0.99 <= bmi percentile <= 1.0
-        NOTE: only required if creating the data at this stage
-    percentile: default False; filter to ensure certain types of features exist for each data point
-    filterSTR: default ['Gender:1']; filter specific features to have vaules greater than 'filterSTRThresh' for each filterSTR
-    filterSTRThresh: default [0.5]; filter out data points with values less than the provided amount for each filterSTR feature
-    variablesubset: default []; use only specified list of feature(s) (can be exact match or feature category as long as each item is the start of a feature name)
-    variable_exclude: not used
-    num_clusters: default 16; number of kmeans clusters to use for timeseries data
-    num_iters: default 100; number of iterations for kmeans clusters for timeseries data
-    dist_type: default 'euclidean'; distance metric for kmeans clusters for timeseries data
-    corr_vars_exclude: default ['Vital']; features to exclude from correlation results
-    do_impute: default 'True'; impute missing data
-    mrnForFilter: default []; filter data by mrn values
-    add_time: default False; use timeseries analyses
-    bin_ix: default []; list of binary features - will be determined if none provided
-    do_normalize: default True; normalize the data
-    min_occur: default 0; number of occurrences required for feature to be used
-    lasso_selection: defautl False; use LASSO regression to determine the most important features
-    binarize_diagnosis: default True; binarize any diagnosis features that are not already binary
-    get_char_tables: defaut False; save the Table 1 and 2 output to file
-    subset: default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]); used to determine timeseries subset
-    delay_print: default False; print everything at the end -- created for when creating data using multiprocessing and don't want jumbled results
+    outcome : string, default 'obese'
+        Obesity threshold for bmi/age percentile for outcome class. Source: https://www.cdc.gov/obesity/childhood/defining.html
+            'overweight': 0.85 <= bmi percentile < 0.95
+            'obese': 0.95 <= bmi percentile <= 1.0
+            'extreme': 0.99 <= bmi percentile <= 1.0
+    
+    NOTE: the below are only required if creating the data at this stage.
+    percentile : bool, default False
+        Filter to ensure certain types of features exist for each data point.
+    filterSTR : list default ['Gender:1']
+        Filter specific features to have vaules greater than 'filterSTRThresh' for each filterSTR.
+    filterSTRThresh : list, default [0.5]
+        Filter out data points with values less than the provided amount for each filterSTR feature.
+    variablesubset : list, default []
+        Use only specified list of feature(s) (can be exact match or feature category as long as each item is the start of a feature name).
+    variable_exclude : not used
+    num_clusters : int, default 16
+        Number of kmeans clusters to use for timeseries data
+    num_iters : int, default 100
+        Number of iterations for kmeans clusters for timeseries data.
+    dist_type : string, default 'euclidean'
+        Distance metric for kmeans clusters for timeseries data.
+    corr_vars_exclude : default ['Vital']
+        Features to exclude from correlation results.
+    do_impute : bool, default True
+        Impute missing data.
+    mrnForFilter : list, default []
+        Filter data by MRNs.
+    add_time : bool, default False
+        Use timeseries analyses.
+    bin_ix : list, default []
+        List of binary features; will be determined if an empty list is provided.
+    do_normalize : bool, default True
+        Normalize the data.
+    min_occur : int, default 0
+        Number of occurrences required for feature to be used.
+    lasso_selection : bool, defautl False
+        Use LASSO regression to determine the most important features.
+    binarize_diagnosis : bool, default True
+        Binarize any diagnosis features that are not already binary
+    get_char_tables : bool, defaut False
+        Save the characteristic tables to a file.
+    subset : array, default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])
+        Used to determine timeseries subset.
+    use_maternal : bool, default False.
+        Indicator to determine if only considering children with maternal data.
+    use_vital : bool, default False
+        Indicator to determine if only considering children with some available non-demographic features.
+    delay_print : bool, default False
+        Print everything at the end -- created for when creating data running in parallel and don't want jumbled results
     """
 
     if any([len(x)==0 for x in (x1,y1,y1label,feature_headers,mrns)]):
@@ -735,10 +902,10 @@ def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lo
         x1[:,bin_ix] = (x1[:,bin_ix] > 0) * 1.0
 
     if delay_print:
-        ix_filter, x2, y2, y2label, mrns, print_statements = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh, print_out=not delay_print)
+        ix_filter, x2, y2, y2label, mrns, print_statements = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh, maternal=use_maternal, vital=use_vital, print_out=not delay_print)
         reporting += print_statements
     else:
-        ix_filter, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh, print_out=not delay_print)
+        ix_filter, x2, y2, y2label, mrns = filter_training_set_forLinear(x1, y1, y1label, feature_headers, filterSTR, percentile, mrns, filterSTRThresh, maternal=use_maternal, vital=use_vital, print_out=not delay_print)
     if get_char_tables:
         print_charac_table(x2, y2, y2label, feature_headers)
         newdir = time.strftime("table_stats_%Y%m%d_")+str(months_from)+'to'+str(months_to)+'months_'+str(agex_low)+'to'+str(agex_high)+'years'
@@ -815,8 +982,8 @@ def prepare_data_for_analysis(data_dic, data_dic_mom, data_dic_hist_moms, lat_lo
     return x2, y2, y2label, mrns, ix_filter, feature_headers, corr_headers_filtered, corr_matrix_filtered, ix_corr_headers
 
 def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, lat_lon_dic, env_dic, x1, y1, y1label, feature_headers, mrns, agex_low, agex_high, months_from, months_to, outcome='obese', modelType='lasso', percentile=False, filterSTR=['Gender:1'],  filterSTRThresh=[0.5], variablesubset=['Vital'],variable_exclude=['Trend'], num_clusters=16, num_iters=100, dist_type='euclidean', corr_vars_exclude=['Vital'], return_data_for_error_analysis=False, return_data=False, return_data_transformed=False, return_train_test_data=False, do_impute=True, mrnForFilter=[], add_time=False, bin_ix=[], do_normalize=True, binarize_diagnosis=True, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])): #filterSTR='Gender:0 male'
-
     """
+    NOTE: THIS IS NOT IN USE ANYMORE. PLEASE REFER TO THE FUNCTION BELOW (train_model_for_bmi_parallel())
     Train regression model for predicting obesity outcome
     #### PARAMETERS ####
     For the below features if not using set value to {}
@@ -1028,32 +1195,97 @@ def train_regression_model_for_bmi(data_dic, data_dic_mom, data_dic_hist_moms, l
 
 def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_headers_filtered, corr_matrix_filtered, ix_corr_headers, test_ix=[], iters=10, modelType='lasso',regression=True, percentile=False, get_char_tables=False, feature_info=True, subset=np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])):
     """
-    Train regression model for predicting obesity outcome. All subsetting of data should be performed with 'prepare_data_for_analysis()'
-    Returns: (model_list, randix_track, ix_train_track, ix_val_track, test_ix, results_arr, results_cols, feature_data, feature_data_cols,
-        auc_val_mean, auc_val_mean_ste, metric2_val_mean, metric2_val_mean_ste, metric3_val_mean, metric3_val_mean_ste,
-        auc_test_mean, auc_test_mean_ste, metric2_test_mean, metric2_test_mean_ste, metric3_test_mean, metric3_test_mean_ste)
-        NOTE: for regression == True metric2 is R^2 and metric3 is explained variance, and for
-            regression == False (classification) metric2 is accuracy and metric3 is the Matthews Correlation Coefficient
-    #### PARAMETERS ####
-    For the below features if not using set value to {}
-    x2: data array
-    y2: data to be predicted
-    y2label: obesity label for each child
-    feature_headers: list of features that matches the column space of x1
-    mrns: list of mrns that matches that corresponds to x1
-    test_ix: default []; list of indices to use for the test set. If not larger than 10% of the sample size, then a new set of 20% of N will be created.
-    iters: default 10; number of iterations in bootstrap cross validation
-    modelType: default 'lasso'
-        'lasso' - sklearn.linear_model.Lasso/LogisticRegression
-        'mlp' - sklearn.neural_network.MLPRegressor/Classifier -- NOT IMPLEMENTED
-        'randomforest' -  sklearn.ensemble.RandomForestRegressor/Classifier
-        'temporalCNN' - cnn -- NOT IMPLEMENTED
-        'gradientboost' - sklearn.ensemble.GradientBoostingRegressor/Classifier
-        'lars' - sklearn.linear_model -- NOT VALID FOR CLASSIFICATION
-    regression: default True; Binary for classification or regression implementations
-    get_char_tables: defaut False; save the Table 1 and 2 output to file
-    feature_info: default True; output model feature characteristics post analysis
-    subset: default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False]); used to determine timeseries
+    Train regression model for predicting obesity outcome. All subsetting of data should be
+    performed with 'prepare_data_for_analysis()'
+    
+    Parameters
+    ----------
+    For the below features if not using set value to {}.
+    x2 : array
+        Data array.
+    y2 : array
+        Data to be predicted.
+    y2label : array
+        Prediction label for each child.
+    feature_headers : list 
+        Listof features that matches the column space of x2.
+    mrns : list 
+        List of MRNs that matches that corresponds to x2.
+    test_ix : list, default []
+        List of indices to use for the test set. If not larger than 10% of 
+        the sample size, then a new set of 20% of N will be created.
+    iters : int, default 10
+        Number of iterations in bootstrap cross validation.
+    modelType : string, default 'lasso'
+        'lasso' : sklearn.linear_model.Lasso/LogisticRegression
+        'mlp' : sklearn.neural_network.MLPRegressor/Classifier -- NOT IMPLEMENTED
+        'randomforest' :  sklearn.ensemble.RandomForestRegressor/Classifier
+        'temporalCNN' : cnn -- NOT IMPLEMENTED
+        'gradientboost' : sklearn.ensemble.GradientBoostingRegressor/Classifier
+        'lars' : sklearn.linear_model -- NOT VALID FOR CLASSIFICATION
+    regression : bool, default True
+        Binary for classification or regression implementations.
+    get_char_tables : bool, defaut False
+        Save the Table 1 and 2 output to file.
+    feature_info : bool, default True
+        Output model feature characteristics post analysis.
+    subset : array
+        Default np.array([True, False, False, False, False, False, False, False, False, False, False, False, False, False, False])
+        Used to determine timeseries.
+
+    Returns: 
+        model_list : list, shape (iters,)
+            List of sklearn model objects.
+        randix_track : array, shape (iters, 0.9 * (N_samples - len(test_ix)))
+            Array of indices used to determine the samples to be used for training and validation.
+        ix_train_track : array, shape (iters, randix_track.shape[0] * 2 / 3)
+            Array of indices used as the training set in bootstrap training.
+        ix_val_track : array, shape (iters, randix_track.shape[0] / 3)
+            Array of indices used as the validation set in bootstrap training.
+        test_ix : array, shape (iters, len(test_ix)) if test_ix provided or (iters, 0.8 * x2.shape[0])
+            Test set used for each iteration. The same indices are used throughout for a consistent measure
+            of model performance across iterations.
+        results_arr : array, shape (N_thresholds, 13)
+            Array of results_cols for each regression (or class probability) threshold used to assess model quality
+            for the top perforning model across all iterations (AUC used)
+        results_cols : list, shape (13)
+            Dictionary keys from:
+            {'threshold':0, 'tp':1, 'tn':2, 'fn':3, 'fp':4,
+            'ppv':5, 'sensitivity':6, 'specificity':7,
+            'accuracy':8, 'f1':9, 'mcc':10, 'pos':11, 'neg':12}
+        feature_data : array, shape (# non zero model weights, 33)
+        feature_data_cols : list, shape (33)
+            List of columns for feature_data. Returns the following:
+            ['feature', 'significant', 'occurrences', 'auc', 'weight/importance', 'wt_low', 'wt_high',
+            'OR', 'OR_low', 'OR_high', 'OR_adj', 'OR_adj_low', 'OR_adj_high',
+            'Top1CorrFeat', 'Top1CorrVal', 'Top2CorrFeat', 'Top2CorrVal', 'Top3CorrFeat', 'Top3CorrVal',
+            'Top4CorrFeat', 'Top4CorrVal', 'Top5CorrFeat', 'Top5CorrVal', 'Top6CorrFeat', 'Top6CorrVal',
+            'Top7CorrFeat', 'Top7CorrVal', 'Top8CorrFeat', 'Top8CorrVal', 'Top9CorrFeat', 'Top9CorrVal',
+            'Top10CorrFeat', 'Top10CorrVal']
+        auc_val_mean : float
+            Mean of validation AUROC for all iterations.
+        auc_val_mean_ste : float
+            Standard error for the 95% CI for the mean validation AUROC for all iterations.
+        metric2_val_mean : float
+            Mean of validation R^2 (accuracy for classification) for all iterations.
+        metric2_val_mean_ste : float
+            Standard error for the 95% CI for the mean validation R^2 (accuracy for classification) for all iterations.
+        metric3_val_mean : float
+            Mean of validation explained variance (Matthews Correlation Coefficient for classification) for all iterations.
+        metric3_val_mean_ste : float
+            Standard error for the 95% CI for the mean validation explained variance (Matthews Correlation Coefficient for classification) for all iterations.
+        auc_test_mean : float
+            Mean of test AUROC for all iterations.
+        auc_test_mean_ste : float
+            Standard error for the 95% CI for the mean test AUROC for all iterations.
+        metric2_test_mean : float
+            Mean of test R^2 (accuracy for classification) for all iterations.
+        metric2_test_mean_ste : float
+            Standard error for the 95% CI for the mean test R^2 (accuracy for classification) for all iterations.
+        metric3_test_mean : float
+            Mean of test explained variance (Matthews Correlation Coefficient for classification) for all iterations.
+        metric3_test_mean_ste : float
+            Standard error for the 95% CI for the mean test explained variance (Matthews Correlation Coefficient for classification) for all iterations.
     """
     if modelType == 'mlp':
         print ('you need to implement gradient to get top weights. ')
@@ -1090,7 +1322,7 @@ def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_he
         randix_track = np.zeros((N_subset, iters), dtype=int)
         ix_train_track = np.zeros((train_size, iters), dtype=int)
         ix_val_track = np.zeros((val_size, iters), dtype=int)
-        node_count = max(2,min(math.ceil(multiprocessing.cpu_count()*0.8), multiprocessing.cpu_count()-1))
+        node_count = max(2,min(ceil(cpu_count()*0.8), cpu_count()-1))
 
         xtest = x2[test_ix,:]; ytest = y2[test_ix]; ytestlabel = y2label[test_ix]; mrnstest = mrns[test_ix]
         for iteration in range(0, iters):
@@ -1101,29 +1333,14 @@ def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_he
             arguments.append([iteration, datax, xtest, datay, ytest, dataylabel, ytestlabel, percentile, modelType])
             randix_track[:,iteration] = randix
         single = train_regression_single if regression else train_classification_single
-        if iters > node_count:
-            num_batches = math.ceil(float(iters/node_count))
-            for i in range(num_batches):
-                sub_args = arguments[i*node_count:(i+1)*node_count] if i < num_batches-1 else arguments[i*node_count:]
-                nodes = node_count if i < num_batches-1 else len(arguments) - (i * node_count)
-                print('Running batch {0:d} of {1:d} with {2:d} nodes'.format(i+1, num_batches, nodes))
-                with Pool(node_count) as p:
-                    outputs = p.map(single, sub_args)
-                for model, auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test, ix_train, ix_val, results, iteration in outputs:
-                    ix_train_track[:,iteration] = ix_train
-                    ix_val_track[:,iteration] = ix_val
-                    results_cv[iteration,:] = [auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test]
-                    model_weights_array[iteration,:] = model.coef_ if modelType in ('lasso','lars') else model.feature_importances_
-                    model_list[iteration] = model
-        else:
-            with Pool(min(iters,node_count)) as p:
-                outputs = p.map(single, arguments)
-            for model, auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test, ix_train, ix_val, results, iteration in outputs:
-                ix_train_track[:,iteration] = ix_train
-                ix_val_track[:,iteration] = ix_val
-                results_cv[iteration,:] = [auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test]
-                model_weights_array[iteration,:] = model.coef_ if modelType in ('lasso','lars') else model.feature_importances_
-                model_list[iteration] = model
+        with ProcessPoolExecutor(max_workers=node_count) as p:
+            outputs = p.map(single, arguments)
+        for model, auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test, ix_train, ix_val, results, iteration in outputs:
+            ix_train_track[:,iteration] = ix_train
+            ix_val_track[:,iteration] = ix_val
+            results_cv[iteration,:] = [auc_val, auc_test, metric2_val, metric2_test, metric3_val, metric3_test]
+            model_weights_array[iteration,:] = model.coef_ if modelType in ('lasso','lars') else model.feature_importances_
+            model_list[iteration] = model
 
         best = np.where(np.argsort(results_cv[:,1])==0)[0][0] # using best test AUC for producing model outputs
         xtrain = x2[randix_track[:,best],:][ix_train_track[:,best],:]
@@ -1215,7 +1432,7 @@ def train_model_for_bmi_parallel(x2, y2, y2label, feature_headers, mrns, corr_he
         mcc[ix] = ((tp * tn) - (fp * fn)) / denom if denom != 0 else 0.0
         report_metrics += '@threshold:{0:4.3f}, sens:{1:4.3f}, spec:{2:4.3f}, ppv:{3:4.3f}, acc:{4:4.3f}, f1:{5:4.3f}, mcc:{6:4.3f}, total+:{7:,d}, total-:{8:,d}\n'.format(t, sens[ix], spec[ix], ppv[ix], acc[ix], f1[ix], mcc[ix], int(tp+fp), int(tn+fn))
 
-    results_arr = np.hstack((operating_Thresholds.reshape(-1,1),TP.reshape(-1,1),TN.reshape(-1,1),FN.reshape(-1,1),FP.reshape(-1,1),ppv.reshape(-1,1),sens.reshape(-1,1),spec.reshape(-1,1),acc.reshape(-1,1),f1.reshape(-1,1),mcc.reshape(-1,1),(TP+FP).reshape(-1,1),(TN+FN).reshape(-1,1)))
+    results_arr = np.hstack((operating_Thresholds.reshape(-1,1), TP.reshape(-1,1), TN.reshape(-1,1), FN.reshape(-1,1), FP.reshape(-1,1), ppv.reshape(-1,1), sens.reshape(-1,1), spec.reshape(-1,1), acc.reshape(-1,1), f1.reshape(-1,1), mcc.reshape(-1,1), (TP+FP).reshape(-1,1), (TN+FN).reshape(-1,1)))
     print('total Variables', x2.sum(axis=0).shape[0], ' and total subjects:', x2.shape[0])
     print('->AUC validation: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(auc_val_mean, auc_val_mean - auc_val_mean_ste, auc_val_mean + auc_val_mean_ste))
     print('->AUC test: {0:4.3f} 95% CI: [{1:4.3f} , {2:4.3f}]'.format(auc_test_mean, auc_test_mean - auc_test_mean_ste, auc_test_mean + auc_test_mean_ste))
@@ -1343,13 +1560,26 @@ def train_chain(data_dic, data_dic_mom, agex_low, agex_high, months_from, months
 
 def prec_rec_curve(recall_list, precision_list, titles_list, title, show=True, save=False):
     """
-    Precision Recall Curves for multiple analyses to compare results
-    #### PARAMETERS ####
-    recall_list: list of lists of recall values
-    precision_list: list of lists of precision values
-    titles_list: list of legend labels for each model
-    title: title of plot and filename if saving
-    save: binary to indicate if plot should be saved
+    Plot the Precision Recall Curves for multiple analyses to compare results.
+    
+    Parameters
+    ----------
+    recall_list : list
+        Nested lists of recall values.
+    precision_list : list
+        Nested lists of precision values.
+    titles_list : list
+        List of legend labels for each model.
+    title : str
+        Title of plot and filename if saving
+    save : bool, default True
+        Indicator for saving plot with title.
+    dpi : int, default 96
+        DPI setting for saving output plots.
+
+    Returns
+    -------
+    Nothing
     """
     plt.figure(figsize=(10,10))
     for ix in range(len(precision_list)):
@@ -1368,14 +1598,26 @@ def prec_rec_curve(recall_list, precision_list, titles_list, title, show=True, s
 
 def ROC_curve(recall_list, specificity_list, titles_list, title, show=True, save=False, dpi=96):
     """
-    Receiver Operator Curves for multiple analyses to compare results
-    #### PARAMETERS ####
-    recall_list: list of lists of recall values
-    specificity_list: list of lists of specificity values
-    titles_list: list of legend labels for each model
-    title: title of plot and filename if saving
-    save: binary to indicate if plot should be saved
-    dpi: default = 96; dpi setting for saving output
+    Plot the Receiver Operator Characteristic Curves for multiple analyses to compare results.
+    
+    Parameters
+    ----------
+    recall_list : list
+        Nested lists of recall values.
+    specificity_list : list
+        Nested lists of specificity values.
+    titles_list : list
+        List of legend labels for each model.
+    title : str
+        Title of plot and filename if saving
+    save : bool, default True
+        Indicator for saving plot with title.
+    dpi : int, default 96
+        DPI setting for saving output plots.
+
+    Returns
+    -------
+    Nothing
     """
     plt.figure(figsize=(10,10))
     for ix in range(len(prec_total)):
@@ -1395,16 +1637,31 @@ def ROC_curve(recall_list, specificity_list, titles_list, title, show=True, save
 
 def plot_growth_curve(data, mrn, key, readings='us', save_name=None, dpi=96, hide_mrn=False):
     """
-    data: data dictionary containing ht/wt data
-    mrn: default = None; use if defining patient to plot by mrn
-    key: key to use for accessing the patient's information in the data dictionary. If mrn is provided, then
+    Plot the growth curve for a given patient aged 0 to 2.
+
+    Parameters
+    ----------
+    data : dict
+        Data dictionary containing height and weight data.
+    mrn : int or str, default = None.
+        Patient MRN. Use if defining patient to plot by mrn.
+    key : int or str
+        Dictionary key to use for accessing the patient's information in the data dictionary. If mrn is provided, then
         this field is not used.
-    readings: default = 'us'
-        'us': ht/wt in inches/pounds
+    readings : str, default 'us'
+        Measurement system for data provided.
+        'us': height and weight in inches and pounds, respectively.
         'metric': ht/wt in centimeters/kilograms
-    save_name: default = None; provide a <path/file_name.png> to save the plot.
-    dpi: default = 96; dpi setting for saving output
-    hide_mrn: default = False; place the mrn in the title of the plot. Use False if sharing outside
+    save_name : str, default None
+        Provide a <path/file_name.png> to save the plot.
+    dpi : int, default 96
+        DPI setting for saving output.
+    hide_mrn : default False
+        Place the patient's MRN in the title of the plot. Use False if sharing outside of IRB approved audience.
+
+    Returns
+    -------
+    Nothing
     """
 
     cols = ['Length','L','M','S','P01','P1','P3','P5','P10','P15','P25','P50','P75','P85','P90','P95','P97','P99','P999']
@@ -1497,13 +1754,24 @@ def plot_growth_curve(data, mrn, key, readings='us', save_name=None, dpi=96, hid
 
 def print_charac_table(x2, y2, y2label, headers, table_features=['Diagnosis:', 'Maternal Diagnosis:', 'Maternal-birthplace:', 'Maternal-marriageStatus:', 'Maternal-nationality:', 'Maternal-race:', 'Maternal-ethnicity:', 'Maternal-Language:', 'Vital:', 'Gender']):
     """
-    Computing and printing to standard output, a characteristics table including various factors. Does not return anything.
-    #### PARAMETERS ####
-    x2: numpy matrix of size N x D where D is the number of features and N is number of samples. Can contain integer and float variables.
-    y2: numpy matrix of size N where N is number of samples. Contains float outcomes
-    y2label: numpy matrix of size N where N is number of samples. Contains Bool or binary outcomes.
-    headers: list of length D, of D string description for each column in x2
-    table_features: list of types of features that we are interested in reporting in the characteristics table.
+    Computing and printing to standard output, a characteristics table including various factors.
+
+    Parameters
+    ----------
+    x2 : array
+        Data array.
+    y2 : array
+        Target data.
+    y2label : array
+        Target labels.
+    headers : list
+        Feature names corresponding to x2.
+    table_features : list
+        List of types of features that we are interested in reporting in the characteristics table.
+
+    Returns
+    -------
+    Nothing
     """
     y2pos_ix = (y2label > 0)
     print(' Characteristics Table')
@@ -1544,12 +1812,23 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
     """
     Essentially the same as "print_charac_table", but saves tables required for reporting to two csv files called
     'summary_stats_t1.csv' and summary_stats_t2.csv in the designated folder.
-    #### PARAMETERS ####
-    x: numpy matrix of size N x D where D is the number of features and N is number of samples. Can contain integer and float variables.
-    y: numpy matrix of size N where N is number of samples. Contains float outcomes
-    ylabel: numpy matrix of size N where N is number of samples. Contains Bool or binary outcomes.
-    headers: list of length D, of D string description for each column in x2
-    folder: default = time.strftime("table_stats_%Y%m%d_%H:%M/"). Folder where the two csv files will be saved.
+    
+    Parameters
+    ----------
+    x : array
+        Data array.
+    y : array
+        Target data.
+    ylabel : array
+        Target labels.
+    headers : list, shape (x.shape[1])
+        Feature names corresponding to x.
+    folder : string, default = time.strftime("table_stats_%Y%m%d_%H:%M/")
+        Folder where the two csv files will be saved.
+
+    Returns
+    -------
+    Nothing
     """
     if type(headers) == np.ndarray:
         headers = headers.tolist()
@@ -1745,8 +2024,7 @@ def get_stat_table(x, y, ylabel, headers, folder=time.strftime("table_stats_%Y%m
         os.mkdir(folder)
     df1.to_csv(folder+'/summary_stats_t1.csv', index=False)
     df2.to_csv(folder+'/summary_stats_t2.csv', index=False)
-    # return df1
-
+    return
 
 if __name__=='__main__':
     d1 = pickle.load(open('patientdata_20170823.pkl', 'rb'))
